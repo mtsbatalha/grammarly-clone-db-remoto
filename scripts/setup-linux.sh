@@ -112,7 +112,13 @@ install_nodejs() {
 
     if [ "$PKG_MANAGER" = "apt-get" ]; then
         # Install Node.js via NodeSource
-        curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO -E bash -
+        if [ -z "$SUDO" ]; then
+            # Running as root, no need for sudo -E
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        else
+            # Not root, use sudo -E to preserve environment
+            curl -fsSL https://deb.nodesource.com/setup_20.x | $SUDO -E bash -
+        fi
         $PKG_INSTALL nodejs
     else
         # Install via nvm for other distros
