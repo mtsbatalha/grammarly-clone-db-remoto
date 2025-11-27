@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurações - GrammarlyClone</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="options-container">
+    <header class="options-header">
+      <div class="logo">
+        <span class="logo-icon">G</span>
+        <h1>GrammarlyClone</h1>
+      </div>
+      <p class="subtitle">Configurações da Extensão</p>
+    </header>
+
+    <main class="options-main">
+      <!-- General Settings -->
+      <section class="settings-section">
+        <h2 class="section-title">Geral</h2>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">Idioma padrão</span>
+            <span class="setting-description">Idioma usado para verificação gramatical</span>
+          </div>
+          <select id="language" class="setting-select">
+            <option value="PT_BR">Português (Brasil)</option>
+            <option value="EN_US">English (US)</option>
+            <option value="EN_GB">English (UK)</option>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">Verificação automática</span>
+            <span class="setting-description">Verificar texto automaticamente enquanto digita</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="autoCheck" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">Mostrar destaques inline</span>
+            <span class="setting-description">Sublinhar erros diretamente no texto</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="showInlineHighlights" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Correction Types -->
+      <section class="settings-section">
+        <h2 class="section-title">Tipos de Correção</h2>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">Gramática</span>
+            <span class="setting-description">Concordância, regência, conjugação</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="enableGrammar" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">Ortografia</span>
+            <span class="setting-description">Erros de escrita</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="enableSpelling" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">Pontuação</span>
+            <span class="setting-description">Vírgulas, pontos, acentuação</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="enablePunctuation" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">Estilo</span>
+            <span class="setting-description">Sugestões de melhoria de escrita</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="enableStyle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">Clareza</span>
+            <span class="setting-description">Tornar o texto mais claro</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="enableClarity" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">Tom</span>
+            <span class="setting-description">Ajustes de formalidade e tom</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="enableTone">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- API Configuration -->
+      <section class="settings-section">
+        <h2 class="section-title">Conexão</h2>
+
+        <div class="setting-item vertical">
+          <div class="setting-info">
+            <span class="setting-label">URL da API</span>
+            <span class="setting-description">Endereço do servidor backend</span>
+          </div>
+          <input type="url" id="apiUrl" class="setting-input" value="http://localhost:3001/api/v1">
+        </div>
+
+        <div class="connection-status">
+          <span class="status-indicator" id="statusIndicator"></span>
+          <span class="status-text" id="statusText">Verificando conexão...</span>
+        </div>
+
+        <button id="testConnection" class="btn btn-secondary">Testar Conexão</button>
+      </section>
+
+      <!-- About -->
+      <section class="settings-section">
+        <h2 class="section-title">Sobre</h2>
+        <div class="about-info">
+          <p><strong>GrammarlyClone</strong> v1.0.0</p>
+          <p>Correção gramatical em tempo real para Português e Inglês</p>
+          <p class="about-links">
+            <a href="http://localhost:5173" target="_blank">Dashboard</a>
+            <span>•</span>
+            <a href="https://github.com/seu-usuario/grammarly-clone" target="_blank">GitHub</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="options-footer">
+      <button id="resetBtn" class="btn btn-danger">Restaurar Padrões</button>
+      <button id="saveBtn" class="btn btn-primary">Salvar Configurações</button>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast hidden">
+    <span id="toastMessage"></span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

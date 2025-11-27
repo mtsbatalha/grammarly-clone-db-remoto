@@ -1,0 +1,299 @@
+// ===========================================
+// GRAMMARLY CLONE - DATABASE SCHEMA
+// ===========================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================
+// ENUMS
+// ===========================================
+
+enum UserPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum Language {
+  PT_BR
+  EN_US
+  EN_GB
+  ES_ES
+  ES_MX
+}
+
+enum CorrectionType {
+  GRAMMAR
+  SPELLING
+  PUNCTUATION
+  STYLE
+  TONE
+  CLARITY
+  CONCISENESS
+}
+
+enum CorrectionSeverity {
+  ERROR
+  WARNING
+  SUGGESTION
+  INFO
+}
+
+enum ToneType {
+  FORMAL
+  INFORMAL
+  CONFIDENT
+  NEUTRAL
+  FRIENDLY
+  PROFESSIONAL
+  DIRECT
+  DIPLOMATIC
+}
+
+// ===========================================
+// USER MANAGEMENT
+// ===========================================
+
+model User {
+  id                String      @id @default(uuid())
+  email             String      @unique
+  passwordHash      String      @map("password_hash")
+  name              String?
+  avatar            String?
+  plan              UserPlan    @default(FREE)
+  status            UserStatus  @default(ACTIVE)
+  preferredLanguage Language    @default(PT_BR) @map("preferred_language")
+
+  // Limites do plano
+  dailyChecks       Int         @default(0) @map("daily_checks")
+  dailyChecksLimit  Int         @default(50) @map("daily_checks_limit")
+  lastCheckReset    DateTime    @default(now()) @map("last_check_reset")
+
+  // Configurações
+  settings          UserSettings?
+
+  // Relacionamentos
+  documents         Document[]
+  corrections       Correction[]
+  sessions          Session[]
+  apiKeys           ApiKey[]
+
+  // Timestamps
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  lastLoginAt       DateTime?   @map("last_login_at")
+
+  @@map("users")
+}
+
+model UserSettings {
+  id                    String      @id @default(uuid())
+  userId                String      @unique @map("user_id")
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Preferências de correção
+  enableGrammar         Boolean     @default(true) @map("enable_grammar")
+  enableSpelling        Boolean     @default(true) @map("enable_spelling")
+  enablePunctuation     Boolean     @default(true) @map("enable_punctuation")
+  enableStyle           Boolean     @default(true) @map("enable_style")
+  enableTone            Boolean     @default(false) @map("enable_tone")
+  enableClarity         Boolean     @default(true) @map("enable_clarity")
+
+  // Tom preferido
+  preferredTone         ToneType    @default(NEUTRAL) @map("preferred_tone")
+
+  // UI
+  showInlineCorrections Boolean     @default(true) @map("show_inline_corrections")
+  autoCorrect           Boolean     @default(false) @map("auto_correct")
+  darkMode              Boolean     @default(false) @map("dark_mode")
+
+  // Dicionário pessoal
+  personalDictionary    String[]    @default([]) @map("personal_dictionary")
+
+  // Ignorar regras específicas
+  ignoredRules          String[]    @default([]) @map("ignored_rules")
+
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+
+  @@map("user_settings")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token        String   @unique
+  refreshToken String   @unique @map("refresh_token")
+  userAgent    String?  @map("user_agent")
+  ipAddress    String?  @map("ip_address")
+
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model ApiKey {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  key         String   @unique
+  lastUsedAt  DateTime? @map("last_used_at")
+  expiresAt   DateTime? @map("expires_at")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// ===========================================
+// DOCUMENTS & CORRECTIONS
+// ===========================================
+
+model Document {
+  id          String       @id @default(uuid())
+  userId      String       @map("user_id")
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String       @default("Untitled")
+  content     String       @db.Text
+  language    Language     @default(PT_BR)
+
+  // Estatísticas
+  wordCount   Int          @default(0) @map("word_count")
+  charCount   Int          @default(0) @map("char_count")
+
+  // Relacionamentos
+  corrections Correction[]
+  revisions   Revision[]
+
+  // Timestamps
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("documents")
+}
+
+model Revision {
+  id          String   @id @default(uuid())
+  documentId  String   @map("document_id")
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  content     String   @db.Text
+  wordCount   Int      @default(0) @map("word_count")
+  charCount   Int      @default(0) @map("char_count")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([documentId])
+  @@index([createdAt])
+  @@map("revisions")
+}
+
+model Correction {
+  id              String             @id @default(uuid())
+  documentId      String?            @map("document_id")
+  document        Document?          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId          String             @map("user_id")
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Texto original e contexto
+  originalText    String             @map("original_text")
+  context         String?            // Texto ao redor para contexto
+
+  // Posição no documento
+  startOffset     Int                @map("start_offset")
+  endOffset       Int                @map("end_offset")
+
+  // Correção
+  type            CorrectionType
+  severity        CorrectionSeverity @default(WARNING)
+  suggestion      String
+  explanation     String?
+  rule            String?            // Identificador da regra aplicada
+
+  // Status
+  isAccepted      Boolean            @default(false) @map("is_accepted")
+  isIgnored       Boolean            @default(false) @map("is_ignored")
+
+  // Idioma detectado
+  language        Language           @default(PT_BR)
+
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  @@index([documentId])
+  @@index([userId])
+  @@index([type])
+  @@map("corrections")
+}
+
+// ===========================================
+// ANALYTICS & STATISTICS
+// ===========================================
+
+model UserStatistics {
+  id                    String   @id @default(uuid())
+  userId                String   @unique @map("user_id")
+
+  // Totais
+  totalDocuments        Int      @default(0) @map("total_documents")
+  totalCorrections      Int      @default(0) @map("total_corrections")
+  totalWordsChecked     Int      @default(0) @map("total_words_checked")
+
+  // Por tipo
+  grammarErrors         Int      @default(0) @map("grammar_errors")
+  spellingErrors        Int      @default(0) @map("spelling_errors")
+  punctuationErrors     Int      @default(0) @map("punctuation_errors")
+  styleIssues           Int      @default(0) @map("style_issues")
+  toneAdjustments       Int      @default(0) @map("tone_adjustments")
+
+  // Taxa de aceitação
+  correctionsAccepted   Int      @default(0) @map("corrections_accepted")
+  correctionsIgnored    Int      @default(0) @map("corrections_ignored")
+
+  // Streak
+  currentStreak         Int      @default(0) @map("current_streak")
+  longestStreak         Int      @default(0) @map("longest_streak")
+  lastActiveDate        DateTime? @map("last_active_date")
+
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("user_statistics")
+}
+
+// ===========================================
+// SISTEMA
+// ===========================================
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     String   // info, warn, error
+  message   String
+  meta      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([level])
+  @@index([createdAt])
+  @@map("system_logs")
+}

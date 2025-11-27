@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GrammarlyClone</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="logo">
+        <span class="logo-icon">G</span>
+        <span class="logo-text">GrammarlyClone</span>
+      </div>
+      <button id="settings-btn" class="icon-btn" title="Configurações">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="popup-main">
+      <!-- Toggle Section -->
+      <div class="toggle-section">
+        <div class="toggle-info">
+          <span class="toggle-label">Correção ativa</span>
+          <span class="toggle-status" id="status-text">Ativado</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="enabled-toggle" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <!-- Language Selector -->
+      <div class="language-section">
+        <label class="section-label">Idioma</label>
+        <div class="language-options">
+          <button class="lang-btn active" data-lang="PT_BR">
+            <span class="flag">🇧🇷</span>
+            <span>Português</span>
+          </button>
+          <button class="lang-btn" data-lang="EN_US">
+            <span class="flag">🇺🇸</span>
+            <span>English</span>
+          </button>
+          <button class="lang-btn" data-lang="ES_ES">
+            <span class="flag">🇪🇸</span>
+            <span>Español</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats Section -->
+      <div class="stats-section">
+        <div class="stat-item">
+          <span class="stat-value" id="corrections-today">0</span>
+          <span class="stat-label">Correções hoje</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="words-checked">0</span>
+          <span class="stat-label">Palavras verificadas</span>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="actions-section">
+        <button class="action-btn primary" id="check-now-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Verificar agora
+        </button>
+        <button class="action-btn secondary" id="dashboard-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="9" y1="21" x2="9" y2="9"></line>
+          </svg>
+          Dashboard
+        </button>
+      </div>
+    </main>
+
+    <!-- User Section -->
+    <footer class="popup-footer">
+      <div id="logged-out-section" class="user-section">
+        <p class="login-prompt">Faça login para salvar histórico</p>
+        <button class="login-btn" id="login-btn">Entrar</button>
+      </div>
+      <div id="logged-in-section" class="user-section hidden">
+        <div class="user-info">
+          <div class="user-avatar" id="user-avatar">U</div>
+          <div class="user-details">
+            <span class="user-name" id="user-name">Usuário</span>
+            <span class="user-plan" id="user-plan">Plano Free</span>
+          </div>
+        </div>
+        <button class="icon-btn" id="logout-btn" title="Sair">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="login-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Entrar</h2>
+        <button class="close-modal">&times;</button>
+      </div>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" required placeholder="seu@email.com">
+        </div>
+        <div class="form-group">
+          <label for="password">Senha</label>
+          <input type="password" id="password" required placeholder="••••••••">
+        </div>
+        <div class="form-error hidden" id="login-error"></div>
+        <button type="submit" class="submit-btn">Entrar</button>
+      </form>
+      <p class="register-link">
+        Não tem conta? <a href="http://localhost:5173/register" target="_blank">Cadastre-se</a>
+      </p>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

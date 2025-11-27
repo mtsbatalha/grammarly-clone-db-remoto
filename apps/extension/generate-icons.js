@@ -1,0 +1,31 @@
+// Simple script to generate PNG icons for the extension
+// Run with: node generate-icons.js
+
+const fs = require('fs');
+const path = require('path');
+
+// Minimal 16x16 PNG with green background and white G
+// This is a pre-generated base64 PNG
+const icons = {
+  16: 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA2ElEQVQ4T2NkoBAwUqifgWoGMDMzszMwMLxhYGBYyMjIuIGBgeEPAwPDHwkJCYb///8zMDAwMLi4uDAcPnz4PzYD/v//z8DMzMyASwMjIyMDIyMjJgyQNIBkCBpApQEUvYAagNMAcg1A1UCyASBJYgzAqQGXIQRdgM0AkgOBXAOIngaUGIAcE8TSgJIYIGoAsmZyNJDlAuTAI9UFJOcDkOMBJCYxBoAcQMgFRP0G8g1RBpCbD3Aag+wSkjSQYgA1sgI5MSE3X7QMU9jvAAAA//8DAL9DOD2UfP3BAAAAAElFTkSuQmCC',
+  32: 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAA8ElEQVRYR+2WsQ3CMBQF/0cgZQDKbJABWIABmIIlKJiAhgFYgDJTUDIAJQMQKRAiiQBxgvNF7tzZ/u+efR/gD0k9AFsANQAtgEUAsQUA7xJA+IICWAJ4BNAB8JhB7AEEA3g1AOEOQBZA9nWRAKgCGAM4AXANcQDxeA7gFEAZwNn3GmA2gFiRE4ACgB2AI4BbiMM0ALcjGMGEG5DcAi0A5wByAC4RLwlgWcEOQLYL0G8HWAAWgAUQegsggIOcAQh+T7EA3C7AHECCy1YENwDxb8EcgDiAGICC7wDDHwFxAPjdAsRBGMAQQIJLGgD/AG5qRCG3c9OHAAAAAElFTkSuQmCC',
+  48: 'iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAABOElEQVRoQ+2YsQ3CMBQE/0egpIFlMgATMAELsABTsARNJmAZSgYgJQUinYSQnCDOK9zZ/u+e7xcA/gj0ANwBqAK4A1gEkEsA8C0ADA8owBLAHYAOgMcEYgcgGEDcAgg3AGYAkp+zBMAZgDGAE4B3ED8AZw0gAiH9DuDsfQvwu8CyA4gdgdcGaAC4nEHsALDsgDuAE4AvgPkfgH8bgHkHnAHMfAiQ7IAHgBOAB4hn3wvwuwDLM+AOIH4Ezh3AbAcg2QGXb0G2C+A9BKgH0O8hsNwBLGdABMJ7CLCcAb8XYN4Bbw0wegawHIG5A5DtAMs3IIBgPgN+t8Dv+h/LIcD0DHjugH8vwPcQoD8DfncAvwvMdgFEIMw74HcL/D4EmJ8BvztgfgZIngFyByB4BkQgvM+A5Rn4AVhuQhDAcCyeAAAAAElFTkSuQmCC',
+  128: 'iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAACoElEQVR4Xu3bsW0CQRCG0bEKoA7XQAkU4BpogxJcAiXQgOugAPqgBEqgB0rACUiy2MXe2939/8aJxTff7N3dHgDwR+AMwA2AGoBrAAsB8hIA/AkAho8owBLANYAOgEcJ8gBgGMC4BRBuAEwBhL/OJQDOAIwBnABIIPYA3hvADADDDngE8BIgvwGcPwLcAiDpgEcALwHyIcD5GdDdAewuwPwPOHcAMx8CthuwPgRst8C5A7h/BC5vwL8d8PsMsOyAdgew/QO67QCshwB9B3T/CJwPAY4LsP8I3N0B/z+i5w5gfwYsjwDHHWD9EGA/A+x2wOIZcA7gsAP2fwTu/xF4vAX73QL/D8H7HdC5A9h3QL8d4HwLsL8Edt4B+w7o9xCgC7DuAJ4nYL8DHL8FO90CLIdA9x3Q7QxYn4HpDGA/BLrfAe27QNsh0G0HdHsJtDwDWncAd4DlGWh9B7AfAu1nwPEhYL0F2u+A/keghwC6AOuPQMsh0G0HWO6A7h+B9pewuwDzDni8BfrtAI63APu/hN0OgZZnwG4H8PwKdt4B7Q9B+x3Q+SHQ8gxYPwMsO4DlGbA8Ao+HQOcdwH4I2A+B7jvA8hCwXwItd8DuJdDtDFg+A9YdYHkEdLsF/n8Guu8A+0tY9x1guQPsnwH7IfD4K9h5B+xnwLoDuu8A6x3QuAO67oD1T8Ceh6DlEuiyA5Y/Ae06oPMt0HIJ7LQDWn8M6rQDWu+ALq+A3Q6wvgR23AFdzoD9DuiyA9pugbZHoN0OaNsB3S+B9hPw+BBovwNazoD1DuhyBux3gPUOaHsLtO2AThPQbQe0vQRan4FuO6DlDOiyA9pugdaXwE47oMsZsN4BbXdA2x3Q8iXQ/gjo8hbocgZa74B2p4DdJcD+FOj+Evj/Avhn0hDYzJoAAAAASUVORK5CYII='
+};
+
+const iconsDir = path.join(__dirname, 'icons');
+
+// Create icons directory if it doesn't exist
+if (!fs.existsSync(iconsDir)) {
+  fs.mkdirSync(iconsDir, { recursive: true });
+}
+
+// Write each icon
+Object.entries(icons).forEach(([size, base64]) => {
+  const buffer = Buffer.from(base64, 'base64');
+  const filePath = path.join(iconsDir, `icon${size}.png`);
+  fs.writeFileSync(filePath, buffer);
+  console.log(`Created ${filePath}`);
+});
+
+console.log('All icons created successfully!');
