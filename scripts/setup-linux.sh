@@ -172,11 +172,25 @@ install_docker() {
 setup_project() {
     print_step "Setting up project..."
 
-    # Get project root directory
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # Get project root directory with fallback
+    if [ -n "${BASH_SOURCE[0]}" ]; then
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+    else
+        SCRIPT_DIR="$(pwd)"
+    fi
+    
+    if [ ! -d "$SCRIPT_DIR" ]; then
+        SCRIPT_DIR="$(pwd)"
+    fi
+    
     PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+    
+    if [ ! -f "$PROJECT_ROOT/package.json" ]; then
+        print_error "Could not find project root. Expected package.json at $PROJECT_ROOT"
+        return 1
+    fi
 
-    cd "$PROJECT_ROOT"
+    cd "$PROJECT_ROOT" || return 1
 
     # Install npm dependencies
     print_step "Installing npm dependencies..."
@@ -189,9 +203,24 @@ setup_project() {
 create_env_file() {
     print_step "Creating environment configuration..."
 
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # Get project root directory with fallback
+    if [ -n "${BASH_SOURCE[0]}" ]; then
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+    else
+        SCRIPT_DIR="$(pwd)"
+    fi
+    
+    if [ ! -d "$SCRIPT_DIR" ]; then
+        SCRIPT_DIR="$(pwd)"
+    fi
+    
     PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
     ENV_FILE="$PROJECT_ROOT/apps/api/.env"
+    
+    if [ ! -d "$PROJECT_ROOT/apps/api" ]; then
+        print_error "Could not find apps/api directory. Expected at $PROJECT_ROOT/apps/api"
+        return 1
+    fi
 
     # Generate random JWT secret
     JWT_SECRET=$(openssl rand -hex 32)
@@ -247,10 +276,20 @@ EOF
 start_docker_services() {
     print_step "Starting Docker services (PostgreSQL, Redis)..."
 
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # Get project root directory with fallback
+    if [ -n "${BASH_SOURCE[0]}" ]; then
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+    else
+        SCRIPT_DIR="$(pwd)"
+    fi
+    
+    if [ ! -d "$SCRIPT_DIR" ]; then
+        SCRIPT_DIR="$(pwd)"
+    fi
+    
     PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-    cd "$PROJECT_ROOT"
+    cd "$PROJECT_ROOT" || return 1
 
     # Use docker compose (new) or docker-compose (legacy)
     if docker compose version &> /dev/null; then
@@ -290,10 +329,20 @@ start_docker_services() {
 setup_database() {
     print_step "Setting up database..."
 
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # Get project root directory with fallback
+    if [ -n "${BASH_SOURCE[0]}" ]; then
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+    else
+        SCRIPT_DIR="$(pwd)"
+    fi
+    
+    if [ ! -d "$SCRIPT_DIR" ]; then
+        SCRIPT_DIR="$(pwd)"
+    fi
+    
     PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-    cd "$PROJECT_ROOT/apps/api"
+    cd "$PROJECT_ROOT/apps/api" || return 1
 
     # Run Prisma migrations
     print_step "Running database migrations..."
@@ -307,10 +356,27 @@ setup_database() {
 build_project() {
     print_step "Building project..."
 
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # Get absolute path to script, handling both direct execution and sourcing
+    if [ -n "${BASH_SOURCE[0]}" ]; then
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+    else
+        SCRIPT_DIR="$(pwd)"
+    fi
+    
+    # Ensure we have a valid script directory
+    if [ ! -d "$SCRIPT_DIR" ]; then
+        SCRIPT_DIR="$(pwd)"
+    fi
+    
     PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-    cd "$PROJECT_ROOT"
+    # Safety check: verify we're in the right place
+    if [ ! -f "$PROJECT_ROOT/package.json" ]; then
+        print_error "Could not find project root. Expected package.json at $PROJECT_ROOT"
+        return 1
+    fi
+
+    cd "$PROJECT_ROOT" || return 1
 
     npm run build
 
