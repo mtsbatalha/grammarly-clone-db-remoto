@@ -74,32 +74,39 @@ export class GrammarService {
       DIPLOMATIC: 'cuidadoso e ponderado',
     };
 
-    const systemPrompt = `Você é um especialista em comunicação escrita multilíngue.
-Sua tarefa é ajustar o tom de textos mantendo o significado original.
-REGRA CRÍTICA: Você DEVE manter o texto no MESMO IDIOMA em que foi escrito. NÃO traduza.
-Se o texto está em inglês, responda em inglês. Se está em português, responda em português. Se está em espanhol, responda em espanhol.
-Responda APENAS com JSON válido no formato especificado.`;
+    const systemPrompt = `You are a multilingual communication expert.
+Your task is to adjust the tone of texts while maintaining the original meaning.
 
-    const userPrompt = `Ajuste o tom do seguinte texto para ser mais ${toneDescriptions[targetTone]}.
+CRITICAL RULE - NEVER TRANSLATE:
+- If the input is in English, your output MUST be in English
+- If the input is in Portuguese, your output MUST be in Portuguese
+- If the input is in Spanish, your output MUST be in Spanish
+- NEVER change the language of the text
+- Only adjust the tone, do NOT translate
 
-REGRAS OBRIGATÓRIAS:
-1. MANTENHA O MESMO IDIOMA do texto original - NÃO traduza
-2. Se o texto está em inglês, o resultado deve ser em inglês
-3. Se o texto está em português, o resultado deve ser em português
-4. Se o texto está em espanhol, o resultado deve ser em espanhol
-5. Apenas ajuste o tom, não mude o idioma
+Respond ONLY with valid JSON in the specified format.`;
 
-TEXTO ORIGINAL:
+    const userPrompt = `Adjust the tone of the following text to be more ${toneDescriptions[targetTone]}.
+
+MANDATORY RULES:
+1. KEEP THE SAME LANGUAGE as the original text - DO NOT TRANSLATE
+2. If the text is in English, the result MUST be in English
+3. If the text is in Portuguese, the result MUST be in Portuguese
+4. If the text is in Spanish, the result MUST be in Spanish
+5. Only adjust the tone, DO NOT change the language
+6. The output language MUST match the input language exactly
+
+ORIGINAL TEXT:
 ${text}
 
-Responda em JSON com o formato:
+Respond with JSON in this format:
 {
-  "adjusted": "texto ajustado NO MESMO IDIOMA do original",
+  "adjusted": "adjusted text IN THE SAME LANGUAGE as the original",
   "changes": [
     {
-      "original": "trecho original",
-      "adjusted": "trecho ajustado",
-      "reason": "motivo da mudança"
+      "original": "original phrase",
+      "adjusted": "adjusted phrase",
+      "reason": "reason for change"
     }
   ]
 }`;
@@ -146,28 +153,35 @@ Responda em JSON com o formato:
       longer: 'mais elaborado e detalhado, expandindo as ideias apresentadas',
     };
 
-    const systemPrompt = `Você é um especialista em redação multilíngue.
-Sua tarefa é reescrever textos conforme o estilo solicitado.
-REGRA CRÍTICA: Você DEVE manter o texto no MESMO IDIOMA em que foi escrito. NÃO traduza.
-Se o texto está em inglês, responda em inglês. Se está em português, responda em português. Se está em espanhol, responda em espanhol.
-Responda APENAS com JSON válido.`;
+    const systemPrompt = `You are a multilingual writing expert.
+Your task is to rewrite texts according to the requested style.
 
-    const userPrompt = `Reescreva o seguinte texto de forma ${styleDescriptions[style]}.
+CRITICAL RULE - NEVER TRANSLATE:
+- If the input is in English, your output MUST be in English
+- If the input is in Portuguese, your output MUST be in Portuguese
+- If the input is in Spanish, your output MUST be in Spanish
+- NEVER change the language of the text
+- Only improve the writing style, do NOT translate
 
-REGRAS OBRIGATÓRIAS:
-1. MANTENHA O MESMO IDIOMA do texto original - NÃO traduza
-2. Se o texto está em inglês, o resultado deve ser em inglês
-3. Se o texto está em português, o resultado deve ser em português
-4. Se o texto está em espanhol, o resultado deve ser em espanhol
-5. Apenas reescreva conforme o estilo solicitado, não mude o idioma
+Respond ONLY with valid JSON.`;
 
-TEXTO ORIGINAL:
+    const userPrompt = `Rewrite the following text to be ${styleDescriptions[style]}.
+
+MANDATORY RULES:
+1. KEEP THE SAME LANGUAGE as the original text - DO NOT TRANSLATE
+2. If the text is in English, the result MUST be in English
+3. If the text is in Portuguese, the result MUST be in Portuguese
+4. If the text is in Spanish, the result MUST be in Spanish
+5. Only rewrite according to the requested style, DO NOT change the language
+6. The output language MUST match the input language exactly
+
+ORIGINAL TEXT:
 ${text}
 
-Responda em JSON com o formato:
+Respond with JSON in this format:
 {
-  "rewritten": "texto reescrito NO MESMO IDIOMA do original",
-  "improvements": ["melhoria 1", "melhoria 2"]
+  "rewritten": "rewritten text IN THE SAME LANGUAGE as the original",
+  "improvements": ["improvement 1", "improvement 2"]
 }`;
 
     try {
