@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { User, Globe, Shield, Trash2, Bot, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
+import { User, Globe, Shield, Trash2, Bot, ExternalLink, CheckCircle, XCircle, Palette, Sun, Moon, Monitor } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import { useThemeStore } from '../stores/themeStore';
 import { userApi } from '../lib/api';
 
 interface Settings {
@@ -34,6 +35,7 @@ interface AIConfig {
 
 export default function Settings() {
   const { user, updateUser, logout } = useAuthStore();
+  const { theme, setTheme } = useThemeStore();
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -159,6 +161,7 @@ export default function Settings() {
   const tabs = [
     { id: 'profile', label: 'Perfil', icon: User },
     { id: 'preferences', label: 'Preferências', icon: Globe },
+    { id: 'appearance', label: 'Aparência', icon: Palette },
     { id: 'ai', label: 'Inteligência Artificial', icon: Bot },
     { id: 'security', label: 'Segurança', icon: Shield },
   ];
@@ -298,6 +301,48 @@ export default function Settings() {
                       <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:bg-primary-600 peer-checked:after:translate-x-full dark:bg-gray-700"></div>
                     </label>
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'appearance' && (
+            <div className="card">
+              <h2 className="mb-6 text-lg font-semibold">Tema</h2>
+              <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                Escolha como o aplicativo deve ser exibido
+              </p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                {[
+                  { id: 'light', label: 'Claro', icon: Sun, desc: 'Sempre usar tema claro' },
+                  { id: 'dark', label: 'Escuro', icon: Moon, desc: 'Sempre usar tema escuro' },
+                  { id: 'system', label: 'Sistema', icon: Monitor, desc: 'Seguir preferência do sistema' },
+                ].map(({ id, label, icon: Icon, desc }) => (
+                  <button
+                    key={id}
+                    onClick={() => setTheme(id as 'light' | 'dark' | 'system')}
+                    className={`flex flex-col items-center gap-3 rounded-lg border-2 p-4 transition-colors ${
+                      theme === id
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                        : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <div
+                      className={`flex h-12 w-12 items-center justify-center rounded-full ${
+                        theme === id
+                          ? 'bg-primary-100 text-primary-600 dark:bg-primary-800 dark:text-primary-400'
+                          : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                      }`}
+                    >
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <div className="text-center">
+                      <p className={`font-medium ${theme === id ? 'text-primary-700 dark:text-primary-400' : 'text-gray-900 dark:text-white'}`}>
+                        {label}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
+                    </div>
+                  </button>
                 ))}
               </div>
             </div>
