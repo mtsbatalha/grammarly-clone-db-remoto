@@ -68,6 +68,19 @@ check_docker() {
     print_success "Docker is running"
 }
 
+# Detect Docker Compose command (new: "docker compose" vs legacy: "docker-compose")
+detect_docker_compose() {
+    if docker compose version &> /dev/null; then
+        DOCKER_COMPOSE="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE="docker-compose"
+    else
+        print_error "Docker Compose not found. Please install Docker Compose."
+        exit 1
+    fi
+    print_success "Using: $DOCKER_COMPOSE"
+}
+
 # Check if ports are available
 check_ports() {
     print_step "Checking port availability..."
@@ -168,7 +181,7 @@ start_npm() {
     get_project_root
     cd "$PROJECT_ROOT"
 
-    docker-compose -f docker-compose.npm.yml up -d
+    $DOCKER_COMPOSE -f docker-compose.npm.yml up -d
 
     print_success "NGINX Proxy Manager started"
 }
@@ -218,9 +231,9 @@ print_instructions() {
     echo "  5. Forward Port: 5173 (web) or 3003 (api)"
     echo ""
     echo "Commands:"
-    echo -e "  ${BLUE}docker-compose -f docker-compose.npm.yml logs -f${NC}  - View logs"
-    echo -e "  ${BLUE}docker-compose -f docker-compose.npm.yml down${NC}     - Stop"
-    echo -e "  ${BLUE}docker-compose -f docker-compose.npm.yml restart${NC}  - Restart"
+    echo -e "  ${BLUE}$DOCKER_COMPOSE -f docker-compose.npm.yml logs -f${NC}  - View logs"
+    echo -e "  ${BLUE}$DOCKER_COMPOSE -f docker-compose.npm.yml down${NC}     - Stop"
+    echo -e "  ${BLUE}$DOCKER_COMPOSE -f docker-compose.npm.yml restart${NC}  - Restart"
     echo ""
 }
 
@@ -273,6 +286,7 @@ main() {
 
     check_root
     check_docker
+    detect_docker_compose
     check_ports
     create_network
     create_npm_compose

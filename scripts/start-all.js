@@ -49,11 +49,32 @@ function checkDocker() {
   }
 }
 
+function getDockerComposeCommand() {
+  try {
+    execSync('docker compose version', { stdio: 'pipe' });
+    return 'docker compose';
+  } catch (error) {
+    try {
+      execSync('docker-compose version', { stdio: 'pipe' });
+      return 'docker-compose';
+    } catch (error2) {
+      log.error('Docker Compose not found.');
+      return null;
+    }
+  }
+}
+
 function startDockerServices() {
   log.info('Starting Docker services (PostgreSQL, Redis)...');
 
+  const dockerCompose = getDockerComposeCommand();
+  if (!dockerCompose) {
+    return false;
+  }
+  log.info(`Using: ${dockerCompose}`);
+
   try {
-    execSync('docker-compose -f docker-compose.dev.yml up -d', {
+    execSync(`${dockerCompose} -f docker-compose.dev.yml up -d`, {
       cwd: projectRoot,
       stdio: 'inherit',
     });

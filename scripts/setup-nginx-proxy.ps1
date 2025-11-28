@@ -58,6 +58,35 @@ function Test-Docker {
     }
 }
 
+function Get-DockerComposeCommand {
+    Write-Step "Detecting Docker Compose command..."
+
+    # Try new "docker compose" syntax first
+    try {
+        $null = docker compose version 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $script:DockerCompose = "docker compose"
+            Write-Success "Using: docker compose"
+            return $true
+        }
+    }
+    catch {}
+
+    # Try legacy "docker-compose" syntax
+    try {
+        $null = docker-compose version 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $script:DockerCompose = "docker-compose"
+            Write-Success "Using: docker-compose"
+            return $true
+        }
+    }
+    catch {}
+
+    Write-Error-Custom "Docker Compose not found. Please install Docker Compose."
+    return $false
+}
+
 function Test-Ports {
     Write-Step "Checking port availability..."
 
@@ -168,7 +197,12 @@ function Start-NginxProxyManager {
     Write-Step "Starting NGINX Proxy Manager..."
 
     Set-Location $ProjectRoot
-    docker-compose -f docker-compose.npm.yml up -d
+
+    if ($script:DockerCompose -eq "docker compose") {
+        docker compose -f docker-compose.npm.yml up -d
+    } else {
+        docker-compose -f docker-compose.npm.yml up -d
+    }
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error-Custom "Failed to start NGINX Proxy Manager"
@@ -230,11 +264,11 @@ function Show-Instructions {
     Write-Host "  5. Forward Port: 5173 (web) or 3003 (api)"
     Write-Host ""
     Write-Host "Commands:"
-    Write-Host "  docker-compose -f docker-compose.npm.yml logs -f" -ForegroundColor Cyan -NoNewline
+    Write-Host "  $script:DockerCompose -f docker-compose.npm.yml logs -f" -ForegroundColor Cyan -NoNewline
     Write-Host "  - View logs"
-    Write-Host "  docker-compose -f docker-compose.npm.yml down" -ForegroundColor Cyan -NoNewline
+    Write-Host "  $script:DockerCompose -f docker-compose.npm.yml down" -ForegroundColor Cyan -NoNewline
     Write-Host "     - Stop"
-    Write-Host "  docker-compose -f docker-compose.npm.yml restart" -ForegroundColor Cyan -NoNewline
+    Write-Host "  $script:DockerCompose -f docker-compose.npm.yml restart" -ForegroundColor Cyan -NoNewline
     Write-Host "  - Restart"
     Write-Host ""
 }
@@ -261,6 +295,7 @@ function Main {
     }
 
     if (-not (Test-Docker)) { exit 1 }
+    if (-not (Get-DockerComposeCommand)) { exit 1 }
     if (-not (Test-Ports)) { exit 1 }
 
     New-NpmDirectories
