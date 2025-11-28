@@ -26,6 +26,12 @@
     "docker:dev:down": "docker-compose -f docker-compose.dev.yml down",
     "setup:linux": "chmod +x scripts/setup-linux.sh && ./scripts/setup-linux.sh",
     "setup:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
+    "setup:nginx": "chmod +x scripts/setup-nginx-proxy.sh && ./scripts/setup-nginx-proxy.sh",
+    "setup:nginx:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup-nginx-proxy.ps1",
+    "nginx:up": "docker-compose -f docker-compose.npm.yml up -d",
+    "nginx:down": "docker-compose -f docker-compose.npm.yml down",
+    "nginx:logs": "docker-compose -f docker-compose.npm.yml logs -f",
+    "nginx:restart": "docker-compose -f docker-compose.npm.yml restart",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
