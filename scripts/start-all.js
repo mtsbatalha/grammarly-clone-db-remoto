@@ -3,11 +3,24 @@
 /**
  * Grammarly Clone - Cross-platform Start Script
  * Works on Windows, Linux, and macOS
+ *
+ * Options:
+ *   --clean, -c     Clean Docker cache before starting
+ *   --rebuild, -r   Force rebuild containers
+ *   --help, -h      Show help
  */
 
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+
+// Parse command line arguments
+const args = process.argv.slice(2);
+const options = {
+  clean: args.includes('--clean') || args.includes('-c'),
+  rebuild: args.includes('--rebuild') || args.includes('-r'),
+  help: args.includes('--help') || args.includes('-h'),
+};
 
 // Colors for console output
 const colors = {
@@ -28,12 +41,37 @@ const log = {
 
 const projectRoot = path.resolve(__dirname, '..');
 
+function printHelp() {
+  console.log(`
+${colors.blue}Grammarly Clone - Start Script${colors.reset}
+
+Usage: node start-all.js [options]
+
+Options:
+  ${colors.cyan}--clean, -c${colors.reset}     Stop containers, remove volumes, and clean Docker cache
+  ${colors.cyan}--rebuild, -r${colors.reset}   Force rebuild containers (no cache)
+  ${colors.cyan}--help, -h${colors.reset}      Show this help message
+
+Examples:
+  node start-all.js              # Normal start
+  node start-all.js --clean      # Clean everything and start fresh
+  node start-all.js --rebuild    # Rebuild containers without cache
+`);
+}
+
 function printBanner() {
   console.log(`${colors.blue}`);
   console.log('===========================================');
   console.log('     Grammarly Clone - Starting...');
   console.log('===========================================');
   console.log(`${colors.reset}`);
+
+  if (options.clean) {
+    console.log(`${colors.yellow}  Mode: CLEAN (removing cache)${colors.reset}`);
+  } else if (options.rebuild) {
+    console.log(`${colors.yellow}  Mode: REBUILD (no cache)${colors.reset}`);
+  }
+  console.log('');
 }
 
 function checkDocker() {
@@ -64,6 +102,40 @@ function getDockerComposeCommand() {
   }
 }
 
+function cleanDockerCache() {
+  const dockerCompose = getDockerComposeCommand();
+  if (!dockerCompose) {
+    return false;
+  }
+
+  log.info('Stopping existing containers...');
+  try {
+    execSync(`${dockerCompose} -f docker-compose.dev.yml down -v --remove-orphans`, {
+      cwd: projectRoot,
+      stdio: 'inherit',
+    });
+  } catch (e) {
+    // Ignore errors if containers don't exist
+  }
+
+  log.info('Removing Docker build cache...');
+  try {
+    execSync('docker builder prune -f', { cwd: projectRoot, stdio: 'inherit' });
+  } catch (e) {
+    log.warn('Could not prune builder cache');
+  }
+
+  log.info('Removing unused Docker images...');
+  try {
+    execSync('docker image prune -f', { cwd: projectRoot, stdio: 'inherit' });
+  } catch (e) {
+    log.warn('Could not prune images');
+  }
+
+  log.success('Docker cache cleaned');
+  return true;
+}
+
 function startDockerServices() {
   log.info('Starting Docker services (PostgreSQL, Redis)...');
 
@@ -74,7 +146,16 @@ function startDockerServices() {
   log.info(`Using: ${dockerCompose}`);
 
   try {
-    execSync(`${dockerCompose} -f docker-compose.dev.yml up -d`, {
+    let cmd = `${dockerCompose} -f docker-compose.dev.yml up -d --remove-orphans`;
+
+    if (options.rebuild || options.clean) {
+      cmd += ' --build --force-recreate';
+      if (options.clean) {
+        cmd += ' --pull always';
+      }
+    }
+
+    execSync(cmd, {
       cwd: projectRoot,
       stdio: 'inherit',
     });
@@ -193,10 +274,23 @@ function startApplication() {
 }
 
 async function main() {
+  // Show help and exit
+  if (options.help) {
+    printHelp();
+    process.exit(0);
+  }
+
   printBanner();
 
   if (!checkDocker()) {
     process.exit(1);
+  }
+
+  // Clean cache if requested
+  if (options.clean) {
+    if (!cleanDockerCache()) {
+      process.exit(1);
+    }
   }
 
   if (!startDockerServices()) {
