@@ -24,6 +24,44 @@ WEB_PORT=${WEB_PORT:-5173}
 POSTGRES_CONTAINER="grammarly_postgres"
 REDIS_CONTAINER="grammarly_redis"
 
+# Get the absolute path to the project root
+get_project_root() {
+    local script_path=""
+
+    # Try to get the script's directory
+    if [ -n "${BASH_SOURCE[0]}" ] && [ "${BASH_SOURCE[0]}" != "$0" ]; then
+        script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+    elif [ -n "$0" ] && [ -f "$0" ]; then
+        script_path="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+    fi
+
+    # If we found the script path, go up one level
+    if [ -n "$script_path" ] && [ -d "$script_path" ]; then
+        PROJECT_ROOT="$(cd "$script_path/.." 2>/dev/null && pwd)"
+    fi
+
+    # Verify we found the right directory
+    if [ ! -f "$PROJECT_ROOT/package.json" ]; then
+        # Try current directory
+        if [ -f "$(pwd)/package.json" ]; then
+            PROJECT_ROOT="$(pwd)"
+        # Try parent of current directory
+        elif [ -f "$(pwd)/../package.json" ]; then
+            PROJECT_ROOT="$(cd "$(pwd)/.." && pwd)"
+        # Try to find it by looking for the grammarly-clone directory
+        elif [ -d "$HOME/grammarly-clone" ] && [ -f "$HOME/grammarly-clone/package.json" ]; then
+            PROJECT_ROOT="$HOME/grammarly-clone"
+        else
+            print_error "Could not find project root. Please run this script from the project directory."
+            print_error "Or clone the project first: git clone <repo> ~/grammarly-clone"
+            exit 1
+        fi
+    fi
+
+    export PROJECT_ROOT
+    print_step "Project root: $PROJECT_ROOT"
+}
+
 print_header() {
     echo -e "${BLUE}"
     echo "==========================================="
@@ -172,24 +210,6 @@ install_docker() {
 setup_project() {
     print_step "Setting up project..."
 
-    # Get project root directory with fallback
-    if [ -n "${BASH_SOURCE[0]}" ]; then
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
-    else
-        SCRIPT_DIR="$(pwd)"
-    fi
-    
-    if [ ! -d "$SCRIPT_DIR" ]; then
-        SCRIPT_DIR="$(pwd)"
-    fi
-    
-    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-    
-    if [ ! -f "$PROJECT_ROOT/package.json" ]; then
-        print_error "Could not find project root. Expected package.json at $PROJECT_ROOT"
-        return 1
-    fi
-
     cd "$PROJECT_ROOT" || return 1
 
     # Install npm dependencies
@@ -203,20 +223,8 @@ setup_project() {
 create_env_file() {
     print_step "Creating environment configuration..."
 
-    # Get project root directory with fallback
-    if [ -n "${BASH_SOURCE[0]}" ]; then
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
-    else
-        SCRIPT_DIR="$(pwd)"
-    fi
-    
-    if [ ! -d "$SCRIPT_DIR" ]; then
-        SCRIPT_DIR="$(pwd)"
-    fi
-    
-    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
     ENV_FILE="$PROJECT_ROOT/apps/api/.env"
-    
+
     if [ ! -d "$PROJECT_ROOT/apps/api" ]; then
         print_error "Could not find apps/api directory. Expected at $PROJECT_ROOT/apps/api"
         return 1
@@ -276,19 +284,6 @@ EOF
 start_docker_services() {
     print_step "Starting Docker services (PostgreSQL, Redis)..."
 
-    # Get project root directory with fallback
-    if [ -n "${BASH_SOURCE[0]}" ]; then
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
-    else
-        SCRIPT_DIR="$(pwd)"
-    fi
-    
-    if [ ! -d "$SCRIPT_DIR" ]; then
-        SCRIPT_DIR="$(pwd)"
-    fi
-    
-    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-
     cd "$PROJECT_ROOT" || return 1
 
     # Use docker compose (new) or docker-compose (legacy)
@@ -329,19 +324,6 @@ start_docker_services() {
 setup_database() {
     print_step "Setting up database..."
 
-    # Get project root directory with fallback
-    if [ -n "${BASH_SOURCE[0]}" ]; then
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
-    else
-        SCRIPT_DIR="$(pwd)"
-    fi
-    
-    if [ ! -d "$SCRIPT_DIR" ]; then
-        SCRIPT_DIR="$(pwd)"
-    fi
-    
-    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-
     cd "$PROJECT_ROOT/apps/api" || return 1
 
     # Run Prisma migrations
@@ -355,26 +337,6 @@ setup_database() {
 # Build project
 build_project() {
     print_step "Building project..."
-
-    # Get absolute path to script, handling both direct execution and sourcing
-    if [ -n "${BASH_SOURCE[0]}" ]; then
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
-    else
-        SCRIPT_DIR="$(pwd)"
-    fi
-    
-    # Ensure we have a valid script directory
-    if [ ! -d "$SCRIPT_DIR" ]; then
-        SCRIPT_DIR="$(pwd)"
-    fi
-    
-    PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-
-    # Safety check: verify we're in the right place
-    if [ ! -f "$PROJECT_ROOT/package.json" ]; then
-        print_error "Could not find project root. Expected package.json at $PROJECT_ROOT"
-        return 1
-    fi
 
     cd "$PROJECT_ROOT" || return 1
 
@@ -428,6 +390,7 @@ main() {
 
     check_root
     detect_package_manager
+    get_project_root
 
     echo ""
     echo "This script will install and configure:"
