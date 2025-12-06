@@ -3,8 +3,29 @@
 # ===========================================
 # Grammarly Clone - Restart Docker Containers
 # ===========================================
+#
+# Usage:
+#   ./restart-containers.sh         # Restart main services only
+#   ./restart-containers.sh --all   # Restart all services including NGINX Proxy Manager
+#   ./restart-containers.sh --npm   # Restart NGINX Proxy Manager only
+#
 
 set -e
+
+# Parse arguments
+RESTART_ALL=false
+RESTART_NPM_ONLY=false
+
+for arg in "$@"; do
+    case $arg in
+        --all|-a)
+            RESTART_ALL=true
+            ;;
+        --npm|-n)
+            RESTART_NPM_ONLY=true
+            ;;
+    esac
+done
 
 # Colors for output
 RED='\033[0;31m'
@@ -51,67 +72,53 @@ get_project_root() {
     echo "$PROJECT_ROOT"
 }
 
-# Main function
-main() {
-    echo -e "${BLUE}"
-    echo "==========================================="
-    echo "  Restarting Docker Containers"
-    echo "==========================================="
-    echo -e "${NC}"
-    echo ""
-    echo "This script will:"
-    echo "  1. Stop all running containers"
-    echo "  2. Remove stopped containers"
-    echo "  3. Start containers again"
-    echo ""
-    
-    read -p "Continue? (y/N) " -n 1 -r
-    echo ""
-    
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Cancelled."
-        exit 0
-    fi
-    
-    echo ""
-    
-    # Get project root
-    PROJECT_ROOT=$(get_project_root) || exit 1
-    
-    cd "$PROJECT_ROOT" || exit 1
-    
-    # Determine docker compose command
-    if docker compose version &> /dev/null; then
-        DOCKER_COMPOSE="docker compose"
-    else
-        DOCKER_COMPOSE="docker-compose"
-    fi
-    
+# Restart NGINX Proxy Manager
+restart_npm() {
+    print_step "Stopping NGINX Proxy Manager..."
+    $DOCKER_COMPOSE -f docker-compose.npm.yml down 2>&1 || true
+
+    print_step "Starting NGINX Proxy Manager..."
+    $DOCKER_COMPOSE -f docker-compose.npm.yml up -d
+
+    # Wait for NPM to be ready
+    print_step "Waiting for NGINX Proxy Manager..."
+    for i in {1..30}; do
+        if curl -s http://localhost:81 > /dev/null 2>&1; then
+            print_success "NGINX Proxy Manager is ready"
+            break
+        fi
+        echo "Waiting for NPM... ($i/30)"
+        sleep 2
+    done
+}
+
+# Restart main services
+restart_main() {
     # Stop containers
-    print_step "Stopping containers..."
+    print_step "Stopping main containers..."
     $DOCKER_COMPOSE down 2>&1 || true
     print_success "Containers stopped"
-    
+
     echo ""
-    
+
     # Remove orphan containers
     print_step "Cleaning up orphaned containers..."
     $DOCKER_COMPOSE down --remove-orphans 2>&1 || true
     print_success "Cleanup complete"
-    
+
     echo ""
-    
+
     # Start containers again
     print_step "Starting containers..."
     $DOCKER_COMPOSE up -d
     print_success "Containers started"
-    
+
     echo ""
-    
+
     # Wait for services
     print_step "Waiting for services to be ready..."
     sleep 3
-    
+
     # Check PostgreSQL
     POSTGRES_CONTAINER="grammarly_postgres"
     for i in {1..30}; do
@@ -122,7 +129,7 @@ main() {
         echo "Waiting for PostgreSQL... ($i/30)"
         sleep 2
     done
-    
+
     # Check Redis
     REDIS_CONTAINER="grammarly_redis"
     for i in {1..30}; do
@@ -133,7 +140,61 @@ main() {
         echo "Waiting for Redis... ($i/30)"
         sleep 2
     done
-    
+}
+
+# Main function
+main() {
+    echo -e "${BLUE}"
+    echo "==========================================="
+    echo "  Restarting Docker Containers"
+    echo "==========================================="
+    echo -e "${NC}"
+
+    if $RESTART_NPM_ONLY; then
+        echo "Mode: NGINX Proxy Manager only"
+    elif $RESTART_ALL; then
+        echo "Mode: All services (including NGINX Proxy Manager)"
+    else
+        echo "Mode: Main services only"
+        echo "  Use --all to include NGINX Proxy Manager"
+        echo "  Use --npm to restart only NGINX Proxy Manager"
+    fi
+
+    echo ""
+
+    read -p "Continue? (y/N) " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Cancelled."
+        exit 0
+    fi
+
+    echo ""
+
+    # Get project root
+    PROJECT_ROOT=$(get_project_root) || exit 1
+
+    cd "$PROJECT_ROOT" || exit 1
+
+    # Determine docker compose command
+    if docker compose version &> /dev/null; then
+        DOCKER_COMPOSE="docker compose"
+    else
+        DOCKER_COMPOSE="docker-compose"
+    fi
+
+    # Restart based on mode
+    if $RESTART_NPM_ONLY; then
+        restart_npm
+    elif $RESTART_ALL; then
+        restart_main
+        echo ""
+        restart_npm
+    else
+        restart_main
+    fi
+
     echo ""
     echo -e "${GREEN}==========================================="
     echo "  All containers restarted successfully!"
@@ -141,7 +202,7 @@ main() {
     echo -e "${NC}"
     echo ""
     echo "Services status:"
-    $DOCKER_COMPOSE ps
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 }
 
 # Run main function
