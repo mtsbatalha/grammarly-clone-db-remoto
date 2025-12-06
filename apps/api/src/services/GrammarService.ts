@@ -84,6 +84,13 @@ CRITICAL RULE - NEVER TRANSLATE:
 - NEVER change the language of the text
 - Only adjust the tone, do NOT translate
 
+CRITICAL RULE - PRESERVE STRUCTURE:
+- Keep ALL line breaks (\\n) exactly as they appear
+- Preserve ALL formatting: quotes, code blocks, lists, bullet points
+- Maintain paragraph structure and spacing
+- Keep any special characters, markdown, or code syntax intact
+- Do NOT merge lines or remove whitespace
+
 Respond ONLY with valid JSON in the specified format.`;
 
     const userPrompt = `Adjust the tone of the following text to be more ${toneDescriptions[targetTone]}.
@@ -95,13 +102,15 @@ MANDATORY RULES:
 4. If the text is in Spanish, the result MUST be in Spanish
 5. Only adjust the tone, DO NOT change the language
 6. The output language MUST match the input language exactly
+7. PRESERVE ALL STRUCTURE: line breaks, paragraphs, quotes, code blocks, lists
+8. Keep the EXACT same number of lines and paragraph breaks
 
 ORIGINAL TEXT:
 ${text}
 
 Respond with JSON in this format:
 {
-  "adjusted": "adjusted text IN THE SAME LANGUAGE as the original",
+  "adjusted": "adjusted text IN THE SAME LANGUAGE as the original, preserving ALL line breaks and structure",
   "changes": [
     {
       "original": "original phrase",
@@ -163,6 +172,14 @@ CRITICAL RULE - NEVER TRANSLATE:
 - NEVER change the language of the text
 - Only improve the writing style, do NOT translate
 
+CRITICAL RULE - PRESERVE STRUCTURE:
+- Keep ALL line breaks (\\n) exactly as they appear in the original
+- Preserve ALL formatting: quotes, code blocks, lists, bullet points
+- Maintain paragraph structure and spacing
+- Keep any special characters, markdown, or code syntax intact
+- Do NOT merge lines or remove whitespace
+- If the text has multiple paragraphs, keep them as separate paragraphs
+
 Respond ONLY with valid JSON.`;
 
     const userPrompt = `Rewrite the following text to be ${styleDescriptions[style]}.
@@ -174,13 +191,16 @@ MANDATORY RULES:
 4. If the text is in Spanish, the result MUST be in Spanish
 5. Only rewrite according to the requested style, DO NOT change the language
 6. The output language MUST match the input language exactly
+7. PRESERVE ALL STRUCTURE: line breaks (\\n), paragraphs, quotes, code blocks, lists
+8. Keep the EXACT same formatting structure - if there are 3 paragraphs, output 3 paragraphs
+9. Preserve any code, markdown, or special formatting exactly as it appears
 
 ORIGINAL TEXT:
 ${text}
 
 Respond with JSON in this format:
 {
-  "rewritten": "rewritten text IN THE SAME LANGUAGE as the original",
+  "rewritten": "rewritten text IN THE SAME LANGUAGE as the original, preserving ALL line breaks and structure exactly",
   "improvements": ["improvement 1", "improvement 2"]
 }`;
 
@@ -225,16 +245,30 @@ Respond with JSON in this format:
 
     const systemPrompt = `Você é um tradutor profissional especializado.
 Traduza textos de forma natural e fluente, mantendo o tom e estilo original.
+
+REGRA CRÍTICA - PRESERVAR ESTRUTURA:
+- Mantenha TODAS as quebras de linha (\\n) exatamente como aparecem
+- Preserve TODA formatação: aspas, blocos de código, listas, bullet points
+- Mantenha a estrutura de parágrafos e espaçamento
+- Preserve caracteres especiais, markdown ou sintaxe de código
+- NÃO junte linhas ou remova espaços em branco
+
 Responda APENAS com JSON válido.`;
 
     const userPrompt = `Traduza o seguinte texto para ${langNames[targetLanguage]}.
+
+REGRAS OBRIGATÓRIAS:
+1. Traduza o conteúdo mantendo o significado original
+2. PRESERVE TODA A ESTRUTURA: quebras de linha, parágrafos, aspas, blocos de código, listas
+3. Se há 3 parágrafos no original, deve haver 3 parágrafos na tradução
+4. Mantenha qualquer código, markdown ou formatação especial exatamente como está
 
 TEXTO ORIGINAL:
 ${text}
 
 Responda em JSON com o formato:
 {
-  "translated": "texto traduzido aqui"
+  "translated": "texto traduzido preservando TODAS as quebras de linha e estrutura"
 }`;
 
     try {
