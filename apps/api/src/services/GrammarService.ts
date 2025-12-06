@@ -74,50 +74,51 @@ export class GrammarService {
       DIPLOMATIC: 'cuidadoso e ponderado',
     };
 
+    const lineCount = text.split('\n').length;
+    const hasCodeBlocks = text.includes('```') || text.includes('`');
+    const hasList = /^[\s]*[-*•]\s/m.test(text) || /^[\s]*\d+\.\s/m.test(text);
+
     const systemPrompt = `You are a multilingual communication expert.
-Your task is to adjust the tone of texts while maintaining the original meaning.
+Your task is to adjust the tone of texts while maintaining the original meaning AND structure.
 
 CRITICAL RULE - NEVER TRANSLATE:
 - If the input is in English, your output MUST be in English
 - If the input is in Portuguese, your output MUST be in Portuguese
-- If the input is in Spanish, your output MUST be in Spanish
 - NEVER change the language of the text
-- Only adjust the tone, do NOT translate
 
-CRITICAL RULE - PRESERVE STRUCTURE:
-- Keep ALL line breaks (\\n) exactly as they appear
-- Preserve ALL formatting: quotes, code blocks, lists, bullet points
-- Maintain paragraph structure and spacing
-- Keep any special characters, markdown, or code syntax intact
-- Do NOT merge lines or remove whitespace
+CRITICAL RULE - PRESERVE EXACT STRUCTURE:
+- The input has EXACTLY ${lineCount} lines - your output MUST have EXACTLY ${lineCount} lines
+- Each line break in the input MUST appear in the exact same position in the output
+- Use \\n (escaped newline) in the JSON string for each line break
+- Do NOT merge multiple lines into one
+- Do NOT split one line into multiple lines
+${hasCodeBlocks ? '- Preserve all code blocks exactly as they are' : ''}
+${hasList ? '- Preserve all list formatting (bullets, numbers) exactly' : ''}
 
-Respond ONLY with valid JSON in the specified format.`;
+Respond ONLY with valid JSON.`;
 
     const userPrompt = `Adjust the tone of the following text to be more ${toneDescriptions[targetTone]}.
 
-MANDATORY RULES:
-1. KEEP THE SAME LANGUAGE as the original text - DO NOT TRANSLATE
-2. If the text is in English, the result MUST be in English
-3. If the text is in Portuguese, the result MUST be in Portuguese
-4. If the text is in Spanish, the result MUST be in Spanish
-5. Only adjust the tone, DO NOT change the language
-6. The output language MUST match the input language exactly
-7. PRESERVE ALL STRUCTURE: line breaks, paragraphs, quotes, code blocks, lists
-8. Keep the EXACT same number of lines and paragraph breaks
+STRUCTURE INFO:
+- Total lines: ${lineCount}
+- Has code blocks: ${hasCodeBlocks}
+- Has lists: ${hasList}
 
-ORIGINAL TEXT:
+ORIGINAL TEXT (between triple backticks):
+\`\`\`
 ${text}
+\`\`\`
 
-Respond with JSON in this format:
+MANDATORY RULES:
+1. KEEP THE SAME LANGUAGE - DO NOT TRANSLATE
+2. Output MUST have EXACTLY ${lineCount} lines (same as input)
+3. Each line break position must be preserved
+4. In the JSON, use \\n for each line break
+
+Respond with JSON:
 {
-  "adjusted": "adjusted text IN THE SAME LANGUAGE as the original, preserving ALL line breaks and structure",
-  "changes": [
-    {
-      "original": "original phrase",
-      "adjusted": "adjusted phrase",
-      "reason": "reason for change"
-    }
-  ]
+  "adjusted": "text with EXACTLY ${lineCount} lines, using \\n for line breaks",
+  "changes": [{"original": "phrase", "adjusted": "phrase", "reason": "reason"}]
 }`;
 
     try {
@@ -162,45 +163,51 @@ Respond with JSON in this format:
       longer: 'mais elaborado e detalhado, expandindo as ideias apresentadas',
     };
 
+    const lineCount = text.split('\n').length;
+    const hasCodeBlocks = text.includes('```') || text.includes('`');
+    const hasList = /^[\s]*[-*•]\s/m.test(text) || /^[\s]*\d+\.\s/m.test(text);
+
     const systemPrompt = `You are a multilingual writing expert.
-Your task is to rewrite texts according to the requested style.
+Your task is to rewrite texts according to the requested style while preserving structure.
 
 CRITICAL RULE - NEVER TRANSLATE:
 - If the input is in English, your output MUST be in English
 - If the input is in Portuguese, your output MUST be in Portuguese
-- If the input is in Spanish, your output MUST be in Spanish
 - NEVER change the language of the text
-- Only improve the writing style, do NOT translate
 
-CRITICAL RULE - PRESERVE STRUCTURE:
-- Keep ALL line breaks (\\n) exactly as they appear in the original
-- Preserve ALL formatting: quotes, code blocks, lists, bullet points
-- Maintain paragraph structure and spacing
-- Keep any special characters, markdown, or code syntax intact
-- Do NOT merge lines or remove whitespace
-- If the text has multiple paragraphs, keep them as separate paragraphs
+CRITICAL RULE - PRESERVE EXACT STRUCTURE:
+- The input has EXACTLY ${lineCount} lines - your output MUST have EXACTLY ${lineCount} lines
+- Each line break in the input MUST appear in the exact same position in the output
+- Use \\n (escaped newline) in the JSON string for each line break
+- Do NOT merge multiple lines into one
+- Do NOT split one line into multiple lines
+${hasCodeBlocks ? '- Preserve all code blocks exactly as they are - do not modify code' : ''}
+${hasList ? '- Preserve all list formatting (bullets, numbers) exactly' : ''}
 
 Respond ONLY with valid JSON.`;
 
     const userPrompt = `Rewrite the following text to be ${styleDescriptions[style]}.
 
-MANDATORY RULES:
-1. KEEP THE SAME LANGUAGE as the original text - DO NOT TRANSLATE
-2. If the text is in English, the result MUST be in English
-3. If the text is in Portuguese, the result MUST be in Portuguese
-4. If the text is in Spanish, the result MUST be in Spanish
-5. Only rewrite according to the requested style, DO NOT change the language
-6. The output language MUST match the input language exactly
-7. PRESERVE ALL STRUCTURE: line breaks (\\n), paragraphs, quotes, code blocks, lists
-8. Keep the EXACT same formatting structure - if there are 3 paragraphs, output 3 paragraphs
-9. Preserve any code, markdown, or special formatting exactly as it appears
+STRUCTURE INFO:
+- Total lines: ${lineCount}
+- Has code blocks: ${hasCodeBlocks}
+- Has lists: ${hasList}
 
-ORIGINAL TEXT:
+ORIGINAL TEXT (between triple backticks):
+\`\`\`
 ${text}
+\`\`\`
 
-Respond with JSON in this format:
+MANDATORY RULES:
+1. KEEP THE SAME LANGUAGE - DO NOT TRANSLATE
+2. Output MUST have EXACTLY ${lineCount} lines (same as input)
+3. Each line break position must be preserved exactly
+4. In the JSON, use \\n for each line break
+5. Do NOT modify any code - only improve surrounding text
+
+Respond with JSON:
 {
-  "rewritten": "rewritten text IN THE SAME LANGUAGE as the original, preserving ALL line breaks and structure exactly",
+  "rewritten": "text with EXACTLY ${lineCount} lines, using \\n for line breaks",
   "improvements": ["improvement 1", "improvement 2"]
 }`;
 
@@ -243,32 +250,46 @@ Respond with JSON in this format:
       ES_MX: 'español de México',
     };
 
-    const systemPrompt = `Você é um tradutor profissional especializado.
-Traduza textos de forma natural e fluente, mantendo o tom e estilo original.
+    const lineCount = text.split('\n').length;
+    const hasCodeBlocks = text.includes('```') || text.includes('`');
+    const hasList = /^[\s]*[-*•]\s/m.test(text) || /^[\s]*\d+\.\s/m.test(text);
 
-REGRA CRÍTICA - PRESERVAR ESTRUTURA:
-- Mantenha TODAS as quebras de linha (\\n) exatamente como aparecem
-- Preserve TODA formatação: aspas, blocos de código, listas, bullet points
-- Mantenha a estrutura de parágrafos e espaçamento
-- Preserve caracteres especiais, markdown ou sintaxe de código
-- NÃO junte linhas ou remova espaços em branco
+    const systemPrompt = `Você é um tradutor profissional especializado.
+Traduza textos de forma natural e fluente, mantendo o tom, estilo E ESTRUTURA original.
+
+REGRA CRÍTICA - PRESERVAR ESTRUTURA EXATA:
+- O texto tem EXATAMENTE ${lineCount} linhas - sua saída DEVE ter EXATAMENTE ${lineCount} linhas
+- Cada quebra de linha DEVE aparecer na mesma posição
+- Use \\n no JSON para cada quebra de linha
+- NÃO junte várias linhas em uma
+- NÃO divida uma linha em várias
+${hasCodeBlocks ? '- Preserve blocos de código exatamente - NÃO traduza código' : ''}
+${hasList ? '- Preserve formatação de listas (bullets, números) exatamente' : ''}
 
 Responda APENAS com JSON válido.`;
 
     const userPrompt = `Traduza o seguinte texto para ${langNames[targetLanguage]}.
 
+INFORMAÇÕES DE ESTRUTURA:
+- Total de linhas: ${lineCount}
+- Tem blocos de código: ${hasCodeBlocks}
+- Tem listas: ${hasList}
+
+TEXTO ORIGINAL (entre crases triplas):
+\`\`\`
+${text}
+\`\`\`
+
 REGRAS OBRIGATÓRIAS:
 1. Traduza o conteúdo mantendo o significado original
-2. PRESERVE TODA A ESTRUTURA: quebras de linha, parágrafos, aspas, blocos de código, listas
-3. Se há 3 parágrafos no original, deve haver 3 parágrafos na tradução
-4. Mantenha qualquer código, markdown ou formatação especial exatamente como está
+2. Saída DEVE ter EXATAMENTE ${lineCount} linhas (igual à entrada)
+3. Cada posição de quebra de linha deve ser preservada
+4. No JSON, use \\n para cada quebra de linha
+5. NÃO traduza código - apenas texto ao redor
 
-TEXTO ORIGINAL:
-${text}
-
-Responda em JSON com o formato:
+Responda em JSON:
 {
-  "translated": "texto traduzido preservando TODAS as quebras de linha e estrutura"
+  "translated": "texto com EXATAMENTE ${lineCount} linhas, usando \\n para quebras"
 }`;
 
     try {
