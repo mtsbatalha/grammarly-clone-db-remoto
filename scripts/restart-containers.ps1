@@ -11,7 +11,8 @@
 
 param(
     [switch]$All,
-    [switch]$Npm
+    [switch]$Npm,
+    [switch]$ResetPorts
 )
 
 # Colors and output functions
@@ -62,14 +63,16 @@ function Get-DockerComposeCmd {
         if ($LASTEXITCODE -eq 0) {
             return "docker compose"
         }
-    } catch {}
+    }
+    catch {}
 
     try {
         $null = docker-compose version 2>$null
         if ($LASTEXITCODE -eq 0) {
             return "docker-compose"
         }
-    } catch {}
+    }
+    catch {}
 
     Write-ErrorMessage "Docker Compose not found"
     exit 1
@@ -81,14 +84,16 @@ function Restart-NginxProxyManager {
     Write-StepMessage "Stopping NGINX Proxy Manager..."
     if ($DockerCompose -eq "docker compose") {
         docker compose -f docker-compose.npm.yml down 2>$null
-    } else {
+    }
+    else {
         docker-compose -f docker-compose.npm.yml down 2>$null
     }
 
     Write-StepMessage "Starting NGINX Proxy Manager..."
     if ($DockerCompose -eq "docker compose") {
         docker compose -f docker-compose.npm.yml up -d
-    } else {
+    }
+    else {
         docker-compose -f docker-compose.npm.yml up -d
     }
 
@@ -100,7 +105,8 @@ function Restart-NginxProxyManager {
                 Write-SuccessMessage "NGINX Proxy Manager is ready"
                 return
             }
-        } catch {
+        }
+        catch {
             # Continue waiting
         }
         Write-Host "Waiting for NPM... ($i/30)"
@@ -111,12 +117,30 @@ function Restart-NginxProxyManager {
 function Restart-MainServices {
     param([string]$DockerCompose, [string]$ProjectRoot)
 
+    # Check for override file
+    $overrideFile = Join-Path $ProjectRoot "docker-compose.override.yml"
+    $overrideArgs = @()
+    
+    if (Test-Path $overrideFile) {
+        $overrideArgs = @("-f", "docker-compose.override.yml")
+        Write-StepMessage "Using port override configuration"
+    }
+
+    # Reset ports if requested
+    if ($ResetPorts -and (Test-Path $overrideFile)) {
+        Write-StepMessage "Removing port override file..."
+        Remove-Item $overrideFile -Force
+        $overrideArgs = @()
+        Write-SuccessMessage "Ports reset to defaults"
+    }
+
     # Stop containers
     Write-StepMessage "Stopping main containers..."
     if ($DockerCompose -eq "docker compose") {
-        docker compose down 2>$null
-    } else {
-        docker-compose down 2>$null
+        & docker compose @overrideArgs down 2>$null
+    }
+    else {
+        & docker-compose @overrideArgs down 2>$null
     }
     Write-SuccessMessage "Containers stopped"
 
@@ -125,9 +149,10 @@ function Restart-MainServices {
     # Remove orphan containers
     Write-StepMessage "Cleaning up orphaned containers..."
     if ($DockerCompose -eq "docker compose") {
-        docker compose down --remove-orphans 2>$null
-    } else {
-        docker-compose down --remove-orphans 2>$null
+        & docker compose @overrideArgs down --remove-orphans 2>$null
+    }
+    else {
+        & docker-compose @overrideArgs down --remove-orphans 2>$null
     }
     Write-SuccessMessage "Cleanup complete"
 
@@ -136,9 +161,10 @@ function Restart-MainServices {
     # Start containers again
     Write-StepMessage "Starting containers..."
     if ($DockerCompose -eq "docker compose") {
-        docker compose up -d
-    } else {
-        docker-compose up -d
+        & docker compose @overrideArgs up -d
+    }
+    else {
+        & docker-compose @overrideArgs up -d
     }
     Write-SuccessMessage "Containers started"
 
@@ -157,7 +183,8 @@ function Restart-MainServices {
                 Write-SuccessMessage "PostgreSQL is ready"
                 break
             }
-        } catch {}
+        }
+        catch {}
 
         if ($i -lt 30) {
             Write-Host "Waiting for PostgreSQL... ($i/30)"
@@ -174,7 +201,8 @@ function Restart-MainServices {
                 Write-SuccessMessage "Redis is ready"
                 break
             }
-        } catch {}
+        }
+        catch {}
 
         if ($i -lt 30) {
             Write-Host "Waiting for Redis... ($i/30)"
@@ -192,12 +220,15 @@ function Main {
 
     if ($Npm) {
         Write-Host "Mode: NGINX Proxy Manager only"
-    } elseif ($All) {
+    }
+    elseif ($All) {
         Write-Host "Mode: All services (including NGINX Proxy Manager)"
-    } else {
+    }
+    else {
         Write-Host "Mode: Main services only"
         Write-Host "  Use -All to include NGINX Proxy Manager"
         Write-Host "  Use -Npm to restart only NGINX Proxy Manager"
+        Write-Host "  Use -ResetPorts to reset to default ports"
     }
 
     Write-Host ""
@@ -222,11 +253,13 @@ function Main {
     # Restart based on mode
     if ($Npm) {
         Restart-NginxProxyManager -DockerCompose $dockerCompose -ProjectRoot $projectRoot
-    } elseif ($All) {
+    }
+    elseif ($All) {
         Restart-MainServices -DockerCompose $dockerCompose -ProjectRoot $projectRoot
         Write-Host ""
         Restart-NginxProxyManager -DockerCompose $dockerCompose -ProjectRoot $projectRoot
-    } else {
+    }
+    else {
         Restart-MainServices -DockerCompose $dockerCompose -ProjectRoot $projectRoot
     }
 

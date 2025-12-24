@@ -27,3 +27,5 @@ web/node_modules/
 api/node_modules/
 extension/node_modules/
 docs/
+backups/
+docker-compose.override.yml

@@ -15,6 +15,7 @@ set -e
 # Parse arguments
 RESTART_ALL=false
 RESTART_NPM_ONLY=false
+RESET_PORTS=false
 
 for arg in "$@"; do
     case $arg in
@@ -23,6 +24,9 @@ for arg in "$@"; do
             ;;
         --npm|-n)
             RESTART_NPM_ONLY=true
+            ;;
+        --reset-ports|-r)
+            RESET_PORTS=true
             ;;
     esac
 done
@@ -94,23 +98,38 @@ restart_npm() {
 
 # Restart main services
 restart_main() {
+    # Check for override file
+    OVERRIDE_ARGS=""
+    if [ -f "docker-compose.override.yml" ]; then
+        OVERRIDE_ARGS="-f docker-compose.override.yml"
+        print_step "Using port override configuration"
+    fi
+
+    # Reset ports if requested
+    if [ "$RESET_PORTS" = true ] && [ -f "docker-compose.override.yml" ]; then
+        print_step "Removing port override file..."
+        rm -f "docker-compose.override.yml"
+        OVERRIDE_ARGS=""
+        print_success "Ports reset to defaults"
+    fi
+
     # Stop containers
     print_step "Stopping main containers..."
-    $DOCKER_COMPOSE down 2>&1 || true
+    $DOCKER_COMPOSE $OVERRIDE_ARGS down 2>&1 || true
     print_success "Containers stopped"
 
     echo ""
 
     # Remove orphan containers
     print_step "Cleaning up orphaned containers..."
-    $DOCKER_COMPOSE down --remove-orphans 2>&1 || true
+    $DOCKER_COMPOSE $OVERRIDE_ARGS down --remove-orphans 2>&1 || true
     print_success "Cleanup complete"
 
     echo ""
 
     # Start containers again
     print_step "Starting containers..."
-    $DOCKER_COMPOSE up -d
+    $DOCKER_COMPOSE $OVERRIDE_ARGS up -d
     print_success "Containers started"
 
     echo ""
@@ -158,6 +177,7 @@ main() {
         echo "Mode: Main services only"
         echo "  Use --all to include NGINX Proxy Manager"
         echo "  Use --npm to restart only NGINX Proxy Manager"
+        echo "  Use --reset-ports to reset to default ports"
     fi
 
     echo ""

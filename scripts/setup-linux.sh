@@ -4,6 +4,19 @@
 # Grammarly Clone - Linux Setup Script
 # Compatible with Debian 12/13, Ubuntu 22.04+
 # ===========================================
+# 
+# Usage: ./setup-linux.sh [OPTIONS]
+# 
+# Options:
+#   -y, --yes, --auto    Run in automatic mode (no prompts, use defaults)
+#   -d, --dir DIR        Set custom installation directory
+#   -h, --help           Show this help message
+#
+# Examples:
+#   ./setup-linux.sh                    # Interactive mode
+#   ./setup-linux.sh -y                 # Automatic mode with defaults
+#   ./setup-linux.sh -y -d /opt/myapp   # Automatic mode with custom directory
+# ===========================================
 
 set -e
 
@@ -14,6 +27,17 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# ===========================================
+# Default Configuration
+# ===========================================
+
+# Installation mode (false = interactive, true = automatic)
+AUTO_MODE=${AUTO_MODE:-false}
+
+# Default installation directory
+DEFAULT_INSTALL_DIR="/opt/grammarly-clone"
+INSTALL_DIR="${INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
+
 # Configuration (matching docker-compose.yml)
 POSTGRES_PORT=${POSTGRES_PORT:-5434}
 REDIS_PORT=${REDIS_PORT:-6381}
@@ -23,6 +47,125 @@ WEB_PORT=${WEB_PORT:-5173}
 # Container names (matching docker-compose.yml)
 POSTGRES_CONTAINER="grammarly_postgres"
 REDIS_CONTAINER="grammarly_redis"
+
+# Default fallback values for automatic mode
+DEFAULT_GROQ_API_KEY=""  # Empty by default, user can configure later
+DEFAULT_JWT_SECRET=""    # Will be auto-generated if empty
+
+# ===========================================
+# Parse Command Line Arguments
+# ===========================================
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -y|--yes|--auto)
+                AUTO_MODE=true
+                shift
+                ;;
+            -d|--dir)
+                INSTALL_DIR="$2"
+                shift 2
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                print_warning "Unknown option: $1"
+                shift
+                ;;
+        esac
+    done
+
+    # Export for child processes
+    export AUTO_MODE
+    export INSTALL_DIR
+}
+
+show_help() {
+    echo ""
+    echo "Grammarly Clone - Linux Setup Script"
+    echo ""
+    echo "Usage: ./setup-linux.sh [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  -y, --yes, --auto    Run in automatic mode (no prompts, use defaults)"
+    echo "  -d, --dir DIR        Set custom installation directory (default: /opt/grammarly-clone)"
+    echo "  -h, --help           Show this help message"
+    echo ""
+    echo "Environment Variables:"
+    echo "  AUTO_MODE=true       Same as -y flag"
+    echo "  INSTALL_DIR=/path    Same as -d flag"
+    echo "  GROQ_API_KEY=key     Pre-set Groq API key"
+    echo "  POSTGRES_PORT=5434   PostgreSQL port"
+    echo "  REDIS_PORT=6381      Redis port"
+    echo "  API_PORT=3003        API server port"
+    echo "  WEB_PORT=5173        Web frontend port"
+    echo ""
+    echo "Examples:"
+    echo "  # Interactive installation"
+    echo "  ./setup-linux.sh"
+    echo ""
+    echo "  # Automatic installation with defaults"
+    echo "  ./setup-linux.sh -y"
+    echo ""
+    echo "  # Automatic with custom directory"
+    echo "  ./setup-linux.sh -y -d /opt/myapp"
+    echo ""
+    echo "  # Using environment variables"
+    echo "  GROQ_API_KEY=gsk_xxx AUTO_MODE=true ./setup-linux.sh"
+    echo ""
+}
+
+# ===========================================
+# Helper function for prompts with fallback
+# ===========================================
+prompt_with_fallback() {
+    local prompt_message="$1"
+    local default_value="$2"
+    local result=""
+
+    if [ "$AUTO_MODE" = true ]; then
+        # Automatic mode: use default value
+        result="$default_value"
+        if [ -n "$default_value" ]; then
+            print_step "Auto-mode: Using default value for '$prompt_message'"
+        else
+            print_step "Auto-mode: Skipping prompt (empty default)"
+        fi
+    else
+        # Interactive mode: ask user
+        read -p "$prompt_message" result
+        if [ -z "$result" ]; then
+            result="$default_value"
+        fi
+    fi
+
+    echo "$result"
+}
+
+# ===========================================
+# Confirmation with fallback
+# ===========================================
+confirm_with_fallback() {
+    local prompt_message="$1"
+    local default_choice="${2:-y}"  # Default to yes
+
+    if [ "$AUTO_MODE" = true ]; then
+        # Automatic mode: use default choice
+        print_step "Auto-mode: Auto-confirming '$prompt_message'"
+        return 0
+    else
+        # Interactive mode: ask user
+        read -p "$prompt_message (y/N) " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]] || ([ -z "$REPLY" ] && [ "$default_choice" = "y" ]); then
+            return 0
+        else
+            return 1
+        fi
+    fi
+}
 
 # Get the absolute path to the project root
 get_project_root() {
@@ -48,12 +191,18 @@ get_project_root() {
         # Try parent of current directory
         elif [ -f "$(pwd)/../package.json" ]; then
             PROJECT_ROOT="$(cd "$(pwd)/.." && pwd)"
-        # Try to find it by looking for the grammarly-clone directory
+        # Try INSTALL_DIR
+        elif [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/package.json" ]; then
+            PROJECT_ROOT="$INSTALL_DIR"
+        # Fallback: try default install directory
+        elif [ -d "$DEFAULT_INSTALL_DIR" ] && [ -f "$DEFAULT_INSTALL_DIR/package.json" ]; then
+            PROJECT_ROOT="$DEFAULT_INSTALL_DIR"
+        # Legacy: try home directory
         elif [ -d "$HOME/grammarly-clone" ] && [ -f "$HOME/grammarly-clone/package.json" ]; then
             PROJECT_ROOT="$HOME/grammarly-clone"
         else
             print_error "Could not find project root. Please run this script from the project directory."
-            print_error "Or clone the project first: git clone <repo> ~/grammarly-clone"
+            print_error "Or clone the project first: git clone <repo> $INSTALL_DIR"
             exit 1
         fi
     fi
@@ -239,16 +388,27 @@ create_env_file() {
         cp "$ENV_FILE" "$ENV_FILE.backup.$(date +%Y%m%d%H%M%S)"
     fi
 
-    # Prompt for Groq API key
-    echo ""
-    echo -e "${YELLOW}=========================================${NC}"
-    echo -e "${YELLOW}  Groq API Key Configuration${NC}"
-    echo -e "${YELLOW}=========================================${NC}"
-    echo ""
-    echo "To use AI features, you need a Groq API key."
-    echo "Get your free API key at: https://console.groq.com"
-    echo ""
-    read -p "Enter your Groq API key (or press Enter to skip): " GROQ_API_KEY
+    # Get Groq API key (from environment variable, prompt, or use default)
+    if [ -n "${GROQ_API_KEY:-}" ]; then
+        # Already set via environment variable
+        print_step "Using pre-configured Groq API key from environment"
+    elif [ "$AUTO_MODE" = true ]; then
+        # Automatic mode: use empty default (can configure later)
+        GROQ_API_KEY="$DEFAULT_GROQ_API_KEY"
+        print_step "Auto-mode: Skipping Groq API key (configure later in .env)"
+    else
+        # Interactive mode: prompt user
+        echo ""
+        echo -e "${YELLOW}=========================================${NC}"
+        echo -e "${YELLOW}  Groq API Key Configuration${NC}"
+        echo -e "${YELLOW}=========================================${NC}"
+        echo ""
+        echo "To use AI features, you need a Groq API key."
+        echo "Get your free API key at: https://console.groq.com"
+        echo ""
+        read -p "Enter your Groq API key (or press Enter to skip): " GROQ_API_KEY
+        GROQ_API_KEY="${GROQ_API_KEY:-$DEFAULT_GROQ_API_KEY}"
+    fi
 
     cat > "$ENV_FILE" << EOF
 # Server
@@ -278,6 +438,10 @@ LOG_LEVEL=info
 EOF
 
     print_success "Environment file created at $ENV_FILE"
+    
+    if [ -z "$GROQ_API_KEY" ]; then
+        print_warning "Groq API key not configured. Edit $ENV_FILE later to enable AI features."
+    fi
 }
 
 # Start Docker services
@@ -386,7 +550,17 @@ print_final_instructions() {
 
 # Main installation flow
 main() {
+    # Parse command line arguments first
+    parse_arguments "$@"
+
     print_header
+
+    # Show mode information
+    if [ "$AUTO_MODE" = true ]; then
+        echo -e "${GREEN}Running in AUTOMATIC mode${NC}"
+        echo -e "Installation directory: ${BLUE}$INSTALL_DIR${NC}"
+        echo ""
+    fi
 
     check_root
     detect_package_manager
@@ -400,10 +574,11 @@ main() {
     echo "  - Redis (via Docker)"
     echo "  - Project dependencies"
     echo ""
-    read -p "Continue with installation? (y/N) " -n 1 -r
+    echo -e "Installation directory: ${BLUE}$INSTALL_DIR${NC}"
     echo ""
 
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    # Use fallback confirmation (auto-confirms in AUTO_MODE)
+    if ! confirm_with_fallback "Continue with installation?" "y"; then
         echo "Installation cancelled."
         exit 0
     fi
