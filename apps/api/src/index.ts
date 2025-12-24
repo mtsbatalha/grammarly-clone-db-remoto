@@ -124,11 +124,34 @@ const gracefulShutdown = async () => {
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
-// Start server
-httpServer.listen(env.PORT, () => {
-  logger.info(`🚀 Server running on port ${env.PORT}`);
-  logger.info(`📝 Environment: ${env.NODE_ENV}`);
-  logger.info(`🤖 AI Provider: ${env.AI_PROVIDER}`);
-});
+// Start server with automatic port fallback
+const startServer = (port: number, maxRetries: number = 10): void => {
+  httpServer.listen(port)
+    .on('listening', () => {
+      const actualPort = (httpServer.address() as { port: number })?.port || port;
+      if (actualPort !== env.PORT) {
+        logger.warn(`⚠️  Port ${env.PORT} was in use, using port ${actualPort} instead`);
+      }
+      logger.info(`🚀 Server running on port ${actualPort}`);
+      logger.info(`📝 Environment: ${env.NODE_ENV}`);
+      logger.info(`🤖 AI Provider: ${env.AI_PROVIDER}`);
+    })
+    .on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE' && maxRetries > 0) {
+        const nextPort = port + 1;
+        logger.warn(`⚠️  Port ${port} is in use, trying ${nextPort}...`);
+        httpServer.close();
+        startServer(nextPort, maxRetries - 1);
+      } else if (err.code === 'EADDRINUSE') {
+        logger.error(`❌ Could not find an available port after multiple attempts`);
+        process.exit(1);
+      } else {
+        logger.error(`❌ Server error: ${err.message}`);
+        process.exit(1);
+      }
+    });
+};
+
+startServer(env.PORT);
 
 export { app, io };
