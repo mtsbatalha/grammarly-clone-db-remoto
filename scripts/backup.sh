@@ -419,11 +419,6 @@ restore_backup() {
         exit 0
     fi
     
-    # Stop all containers before restoration
-    echo "" >&2
-    stop_containers
-    echo "" >&2
-    
     local temp_dir=$(mktemp -d)
     local basename=$(basename "$backup_file")
     
@@ -432,24 +427,33 @@ restore_backup() {
         print_step "Extracting full backup..."
         tar -xzf "$backup_file" -C "$temp_dir"
         
-        # Find and restore database
-        for db_file in "$temp_dir"/db_*.sql.gz; do
-            if [ -f "$db_file" ]; then
-                restore_database "$db_file"
-            fi
-        done
-        
-        # Find and restore files
+        # Restore files FIRST (doesn't require containers)
         for files_file in "$temp_dir"/files_*.tar.gz; do
             if [ -f "$files_file" ]; then
                 restore_files "$files_file"
             fi
         done
         
+        # Stop and restart containers
+        echo "" >&2
+        stop_containers
+        echo "" >&2
+        start_containers
+        echo "" >&2
+        
+        # Restore database AFTER containers are running
+        for db_file in "$temp_dir"/db_*.sql.gz; do
+            if [ -f "$db_file" ]; then
+                restore_database "$db_file"
+            fi
+        done
+        
     elif [[ "$basename" == db_* ]]; then
+        # For database-only restore, ensure PostgreSQL is running
         restore_database "$backup_file"
         
     elif [[ "$basename" == files_* ]]; then
+        # For files-only restore
         restore_files "$backup_file"
     else
         print_error "Unknown backup format"
@@ -461,9 +465,7 @@ restore_backup() {
     echo "" >&2
     print_success "Restore completed!"
     
-    # Start containers and verify
-    echo "" >&2
-    start_containers
+    # Verify restoration
     echo "" >&2
     verify_restore
 }
