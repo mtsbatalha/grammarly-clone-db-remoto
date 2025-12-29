@@ -266,7 +266,8 @@ list_backups() {
     echo ""
     
     local count=0
-    for file in "$BACKUP_DIR"/*.{sql.gz,tar.gz} 2>/dev/null; do
+    shopt -s nullglob
+    for file in "$BACKUP_DIR"/*.sql.gz "$BACKUP_DIR"/*.tar.gz; do
         if [ -f "$file" ]; then
             local size=$(du -h "$file" | cut -f1)
             local date=$(stat -c %y "$file" 2>/dev/null || stat -f %Sm "$file" 2>/dev/null)
@@ -288,6 +289,7 @@ list_backups() {
             ((count++))
         fi
     done
+    shopt -u nullglob
     
     if [ $count -eq 0 ]; then
         echo "  No backups found in $BACKUP_DIR"
