@@ -299,6 +299,85 @@ list_backups() {
     echo "Total: $count backup(s)" >&2
 }
 
+# Stop Docker containers
+stop_containers() {
+    print_step "Stopping all containers..."
+    
+    check_docker
+    
+    if [ ! -f "$PROJECT_ROOT/docker-compose.yml" ]; then
+        print_warning "docker-compose.yml not found, skipping container stop"
+        return
+    fi
+    
+    cd "$PROJECT_ROOT"
+    docker-compose down >&2 2>&1
+    
+    # Wait for containers to fully stop
+    sleep 2
+    
+    print_success "All containers stopped"
+}
+
+# Start Docker containers
+start_containers() {
+    print_step "Starting all containers..."
+    
+    check_docker
+    
+    if [ ! -f "$PROJECT_ROOT/docker-compose.yml" ]; then
+        print_error "docker-compose.yml not found"
+        exit 1
+    fi
+    
+    cd "$PROJECT_ROOT"
+    docker-compose up -d >&2 2>&1
+    
+    # Wait for containers to start
+    print_step "Waiting for services to start..."
+    sleep 5
+    
+    # Check container status
+    local running_containers=$(docker-compose ps --services --filter "status=running" 2>/dev/null | wc -l)
+    
+    print_success "Containers started ($running_containers services running)"
+}
+
+# Verify restore was successful
+verify_restore() {
+    print_step "Verifying restoration..."
+    
+    check_docker
+    check_postgres
+    
+    # Wait a bit for PostgreSQL to be fully ready
+    sleep 2
+    
+    # Test database connection
+    if ! docker exec $POSTGRES_CONTAINER psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT 1;" >&2 2>&1; then
+        print_error "Database connection failed"
+        return 1
+    fi
+    
+    # Check if users table exists and count records
+    local user_count=$(docker exec $POSTGRES_CONTAINER psql -U $POSTGRES_USER -d $POSTGRES_DB -t -c "SELECT COUNT(*) FROM users;" 2>/dev/null | tr -d ' ')
+    
+    if [ -z "$user_count" ]; then
+        print_warning "Could not verify user count (table may not exist yet)"
+    else
+        print_success "Database verified: $user_count user(s) found"
+    fi
+    
+    # Check if API container is running
+    if docker ps --format '{{.Names}}' | grep -q "grammarly_api"; then
+        print_success "API container is running"
+    else
+        print_warning "API container is not running"
+    fi
+    
+    print_success "Verification completed!"
+}
+
 # Restore from backup
 restore_backup() {
     local backup_file=$1
@@ -323,6 +402,11 @@ restore_backup() {
         echo "Restore cancelled." >&2
         exit 0
     fi
+    
+    # Stop all containers before restoration
+    echo "" >&2
+    stop_containers
+    echo "" >&2
     
     local temp_dir=$(mktemp -d)
     local basename=$(basename "$backup_file")
@@ -360,6 +444,12 @@ restore_backup() {
     
     echo "" >&2
     print_success "Restore completed!"
+    
+    # Start containers and verify
+    echo "" >&2
+    start_containers
+    echo "" >&2
+    verify_restore
 }
 
 restore_database() {
