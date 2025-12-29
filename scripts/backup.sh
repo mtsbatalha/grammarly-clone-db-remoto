@@ -59,23 +59,23 @@ for arg in "$@"; do
             LIST_BACKUPS=true
             ;;
         --help|-h)
-            echo "Grammarly Clone - Backup Script"
-            echo ""
-            echo "Usage: ./backup.sh [OPTIONS]"
-            echo ""
-            echo "Backup Options:"
-            echo "  --db, -d          Backup database only"
-            echo "  --files, -f       Backup files only (uploads, configs, .env)"
-            echo "  (no options)      Full backup (database + files)"
-            echo ""
-            echo "Management Options:"
-            echo "  --restore FILE    Restore from a backup file"
-            echo "  --list, -l        List available backups"
-            echo "  --help, -h        Show this help"
-            echo ""
-            echo "Environment Variables:"
-            echo "  BACKUP_DIR        Custom backup directory (default: ./backups)"
-            echo ""
+            echo "Grammarly Clone - Backup Script" >&2
+            echo "" >&2
+            echo "Usage: ./backup.sh [OPTIONS]" >&2
+            echo "" >&2
+            echo "Backup Options:" >&2
+            echo "  --db, -d          Backup database only" >&2
+            echo "  --files, -f       Backup files only (uploads, configs, .env)" >&2
+            echo "  (no options)      Full backup (database + files)" >&2
+            echo "" >&2
+            echo "Management Options:" >&2
+            echo "  --restore FILE    Restore from a backup file" >&2
+            echo "  --list, -l        List available backups" >&2
+            echo "  --help, -h        Show this help" >&2
+            echo "" >&2
+            echo "Environment Variables:" >&2
+            echo "  BACKUP_DIR        Custom backup directory (default: ./backups)" >&2
+            echo "" >&2
             exit 0
             ;;
         *)
@@ -95,27 +95,27 @@ fi
 
 # Output functions
 print_step() {
-    echo -e "${GREEN}[*]${NC} $1"
+    echo -e "${GREEN}[*]${NC} $1" >&2
 }
 
 print_success() {
-    echo -e "${GREEN}[OK]${NC} $1"
+    echo -e "${GREEN}[OK]${NC} $1" >&2
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1" >&2
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo -e "${YELLOW}[WARNING]${NC} $1" >&2
 }
 
 print_header() {
-    echo -e "${BLUE}"
-    echo "==========================================="
-    echo "     Grammarly Clone - Backup Tool"
-    echo "==========================================="
-    echo -e "${NC}"
+    echo -e "${BLUE}" >&2
+    echo "===========================================" >&2
+    echo "     Grammarly Clone - Backup Tool" >&2
+    echo "===========================================" >&2
+    echo -e "${NC}" >&2
 }
 
 # Create backup directory
@@ -262,8 +262,8 @@ EOF
 list_backups() {
     ensure_backup_dir
     
-    echo -e "${CYAN}Available Backups:${NC}"
-    echo ""
+    echo -e "${CYAN}Available Backups:${NC}" >&2
+    echo "" >&2
     
     local count=0
     shopt -s nullglob
@@ -285,18 +285,18 @@ list_backups() {
                 type="[?]"
             fi
             
-            printf "  %-10s %-8s %s\n" "$type" "$size" "$basename"
+            printf "  %-10s %-8s %s\n" "$type" "$size" "$basename" >&2
             ((count++))
         fi
     done
     shopt -u nullglob
     
     if [ $count -eq 0 ]; then
-        echo "  No backups found in $BACKUP_DIR"
+        echo "  No backups found in $BACKUP_DIR" >&2
     fi
     
-    echo ""
-    echo "Total: $count backup(s)"
+    echo "" >&2
+    echo "Total: $count backup(s)" >&2
 }
 
 # Restore from backup
@@ -316,11 +316,11 @@ restore_backup() {
     print_header
     print_warning "This will restore data from: $(basename "$backup_file")"
     print_warning "Existing data will be OVERWRITTEN!"
-    echo ""
+    echo "" >&2
     read -p "Are you sure you want to continue? (yes/no) " confirm
     
     if [ "$confirm" != "yes" ]; then
-        echo "Restore cancelled."
+        echo "Restore cancelled." >&2
         exit 0
     fi
     
@@ -358,7 +358,7 @@ restore_backup() {
     
     rm -rf "$temp_dir"
     
-    echo ""
+    echo "" >&2
     print_success "Restore completed!"
 }
 
@@ -451,10 +451,10 @@ main() {
         create_combined_backup "$db_file" "$files_file"
     fi
     
-    echo ""
+    echo "" >&2
     print_success "Backup completed!"
-    echo ""
-    echo -e "${CYAN}Backup location: $BACKUP_DIR${NC}"
+    echo "" >&2
+    echo -e "${CYAN}Backup location: $BACKUP_DIR${NC}" >&2
 }
 
 main "$@"
