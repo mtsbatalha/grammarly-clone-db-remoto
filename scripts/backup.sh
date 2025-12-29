@@ -142,6 +142,18 @@ check_postgres() {
     fi
 }
 
+# Get the correct docker-compose command
+get_docker_compose_cmd() {
+    if command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    elif docker compose version &> /dev/null; then
+        echo "docker compose"
+    else
+        print_error "Neither 'docker-compose' nor 'docker compose' is available"
+        exit 1
+    fi
+}
+
 # Backup database
 backup_database() {
     print_step "Backing up PostgreSQL database..."
@@ -310,8 +322,10 @@ stop_containers() {
         return
     fi
     
+    local COMPOSE_CMD=$(get_docker_compose_cmd)
+    
     cd "$PROJECT_ROOT"
-    docker-compose down >&2 2>&1
+    $COMPOSE_CMD down >&2 2>&1
     
     # Wait for containers to fully stop
     sleep 2
@@ -330,15 +344,17 @@ start_containers() {
         exit 1
     fi
     
+    local COMPOSE_CMD=$(get_docker_compose_cmd)
+    
     cd "$PROJECT_ROOT"
-    docker-compose up -d >&2 2>&1
+    $COMPOSE_CMD up -d >&2 2>&1
     
     # Wait for containers to start
     print_step "Waiting for services to start..."
     sleep 5
     
     # Check container status
-    local running_containers=$(docker-compose ps --services --filter "status=running" 2>/dev/null | wc -l)
+    local running_containers=$($COMPOSE_CMD ps --services --filter "status=running" 2>/dev/null | wc -l)
     
     print_success "Containers started ($running_containers services running)"
 }
