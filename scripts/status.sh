@@ -51,7 +51,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Default ports (read from override if exists)
 POSTGRES_PORT=5434
 REDIS_PORT=6381
-API_PORT=3003
+API_PORT=3002
 WEB_PORT=5173
 
 # Check if override file exists and read ports
