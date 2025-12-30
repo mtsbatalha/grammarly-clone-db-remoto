@@ -143,6 +143,8 @@ restart_main() {
     for i in {1..30}; do
         if docker exec $POSTGRES_CONTAINER pg_isready -U postgres &> /dev/null; then
             print_success "PostgreSQL is ready"
+            # Extra wait for PostgreSQL to be fully ready for connections
+            sleep 3
             break
         fi
         echo "Waiting for PostgreSQL... ($i/30)"
@@ -157,6 +159,22 @@ restart_main() {
             break
         fi
         echo "Waiting for Redis... ($i/30)"
+        sleep 2
+    done
+    
+    # Check API health
+    print_step "Checking API connection to database..."
+    API_CONTAINER="grammarly_api"
+    for i in {1..30}; do
+        if docker logs $API_CONTAINER 2>&1 | grep -q "Server running on"; then
+            print_success "API is ready and connected to database"
+            break
+        elif docker logs $API_CONTAINER 2>&1 | grep -q "Authentication failed"; then
+            print_error "API failed to connect to database"
+            print_warning "Check database credentials in apps/api/.env"
+            break
+        fi
+        echo "Waiting for API... ($i/30)"
         sleep 2
     done
 }
