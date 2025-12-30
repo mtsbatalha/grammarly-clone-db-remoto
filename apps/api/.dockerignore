@@ -1,0 +1,25 @@
+# Environment files should not be copied into Docker
+# Docker Compose provides environment variables instead
+.env
+.env.local
+.env.*.local
+
+# Development files
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build artifacts
+dist
+*.log
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
