@@ -70,9 +70,9 @@ services:
       start_period: 40s
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/grammarly_clone?schema=public
-      - REDIS_URL=redis://redis:6379
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - DATABASE_URL=postgresql://postgres:postgres@grammarly_postgres:5432/grammarly_clone?schema=public
+      - REDIS_URL=redis://grammarly_redis:6379
+      - OLLAMA_BASE_URL=http://grammarly_ollama:11434
       - JWT_SECRET=sua-chave-secreta-muito-segura-aqui-min-32-chars
       - AI_PROVIDER=groq
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
