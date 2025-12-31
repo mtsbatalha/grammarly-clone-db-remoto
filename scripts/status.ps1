@@ -287,6 +287,12 @@ function Main {
     Write-Host "  API:  " -NoNewline
     Write-Host "http://localhost:$($script:API_PORT)" -ForegroundColor Blue
     Write-Host ""
+    Write-Host "Nginx Proxy Config:" -ForegroundColor Cyan
+    Write-Host "  Frontend -> " -NoNewline
+    Write-Host "http://127.0.0.1:$($script:WEB_PORT)" -ForegroundColor Blue
+    Write-Host "  Backend  -> " -NoNewline
+    Write-Host "http://127.0.0.1:$($script:API_PORT)" -ForegroundColor Blue
+    Write-Host ""
 }
 
 Main

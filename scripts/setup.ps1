@@ -237,3 +237,16 @@ Write-Host "$ComposeCmd down" -ForegroundColor Blue
 Write-Host "  Restart:          " -NoNewline -ForegroundColor Cyan
 Write-Host ".\scripts\restart-containers.ps1" -ForegroundColor Blue
 Write-Host ""
+Write-Host ""
+Write-Host "Nginx Configuration (Optional):" -ForegroundColor Cyan
+Write-Host "If you are using Nginx as a reverse proxy, configure it to forward traffic:"
+Write-Host "  - Frontend: proxy_pass http://localhost:5173;"
+Write-Host "  - Backend:  proxy_pass http://localhost:3002;"
+Write-Host ""
+Write-Host "Example /etc/nginx/sites-available/grammarly:"
+Write-Host "  server {"
+Write-Host "      server_name your-domain.com;"
+Write-Host "      location / { proxy_pass http://127.0.0.1:5173; }"
+Write-Host "      location /api { proxy_pass http://127.0.0.1:3002; }"
+Write-Host "  }"
+Write-Host ""

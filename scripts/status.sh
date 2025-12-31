@@ -304,6 +304,10 @@ main() {
         echo -e "  Web:  ${BLUE}http://localhost:$WEB_PORT${NC}"
         echo -e "  API:  ${BLUE}http://localhost:$API_PORT${NC}"
         echo ""
+        echo -e "${CYAN}Nginx Proxy Config:${NC}"
+        echo -e "  Frontend -> ${BLUE}http://127.0.0.1:$WEB_PORT${NC}"
+        echo -e "  Backend  -> ${BLUE}http://127.0.0.1:$API_PORT${NC}"
+        echo ""
     fi
 }
 
