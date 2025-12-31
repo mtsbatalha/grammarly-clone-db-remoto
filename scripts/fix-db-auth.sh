@@ -30,7 +30,7 @@ fi
 
 # 2. Corrigir o DATABASE_URL se estiver errado no arquivo
 # Busca a senha atual na URL (entre : e @)
-CURRENT_PASSWORD_URL=$(grep "DATABASE_URL=" docker-compose.yml | sed -n 's/.*postgres:\(.*\)@postgres.*/\1/p' | tr -d '\r')
+CURRENT_PASSWORD_URL=$(grep "DATABASE_URL=" docker-compose.yml | sed -n 's/.*postgres:\(.*\)@.*postgres.*/\1/p' | tr -d '\r')
 
 if [ "$CURRENT_PASSWORD_URL" != "$CORRECT_PASSWORD" ]; then
     echo -e "${YELLOW}[!] Senha na DATABASE_URL está divergente ($CURRENT_PASSWORD_URL). Corrigindo...${NC}"

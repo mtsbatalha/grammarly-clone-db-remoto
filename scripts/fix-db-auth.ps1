@@ -16,7 +16,7 @@ else {
 }
 
 # 2. Corrigir o DATABASE_URL se estiver errado no arquivo
-$Pattern = "DATABASE_URL=postgresql://postgres:(.*)@postgres:5432/grammarly_clone\?schema=public"
+$Pattern = "DATABASE_URL=postgresql://postgres:(.*)@.*postgres:5432/grammarly_clone\?schema=public"
 if ($DockerComposeContent -match $Pattern) {
     $CurrentPasswordInUrl = $Matches[1]
     if ($CurrentPasswordInUrl -ne $CorrectPassword) {
