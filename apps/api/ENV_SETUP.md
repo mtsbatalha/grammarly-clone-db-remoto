@@ -42,3 +42,30 @@ rm apps/api/.env
 # Rebuild container
 docker compose up -d --build api
 ```
+
+### Problem: Password Mismatch (Persistent Volume)
+
+**Symptom:** API logs show `Authentication failed against database server` even after removing `.env`.
+
+**Cause:** The PostgreSQL volume (`postgres_data`) has an old password saved from a previous installation, which doesn't match the current `docker-compose.yml`.
+
+**Solution:**
+Use the included fix script which forces the database to update its password to match the configuration:
+
+**Linux/Mac:**
+```bash
+chmod +x scripts/fix-db-auth.sh
+./scripts/fix-db-auth.sh
+```
+
+**Windows:**
+```powershell
+./scripts/fix-db-auth.ps1
+```
+
+**Alternative (Manual Fix):**
+```bash
+# Force the password to be 'postgres' (or whatever is in your docker-compose.yml)
+docker exec grammarly_postgres psql -U postgres -d postgres -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+```
+
