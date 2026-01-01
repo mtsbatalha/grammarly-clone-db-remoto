@@ -11,7 +11,7 @@ services:
     ports:
       - "5434:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - grammarly_postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
@@ -27,7 +27,7 @@ services:
     ports:
       - "6381:6379"
     volumes:
-      - redis_data:/data
+      - grammarly_redis_data:/data
     command: redis-server --appendonly yes
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
@@ -43,7 +43,7 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ollama_data:/root/.ollama
+      - grammarly_ollama_data:/root/.ollama
     # Descomente o bloco abaixo se tiver GPU NVIDIA configurada no Docker
     # deploy:
     #   resources:
@@ -100,10 +100,12 @@ services:
       - api
 
 volumes:
-  postgres_data:
-  redis_data:
-  ollama_data:
-
+  grammarly_postgres_data:
+    name: grammarly_postgres_data
+  grammarly_redis_data:
+    name: grammarly_redis_data
+  grammarly_ollama_data:
+    name: grammarly_ollama_data
 
 networks:
   default:
