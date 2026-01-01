@@ -59,6 +59,11 @@ fi
 # 1. Docker Cleanup
 echo -e "${YELLOW}[1/4] Removing Docker resources...${NC}"
 $COMPOSE_CMD down -v --rmi all --remove-orphans
+
+# Remove old volumes that might have been created with generic names
+echo -e "${YELLOW}      Removing any leftover volumes...${NC}"
+docker volume rm postgres_data redis_data ollama_data 2>/dev/null || true
+docker volume rm grammarly_postgres_data grammarly_redis_data grammarly_ollama_data 2>/dev/null || true
 echo -e "${CYAN}Docker resources removed.${NC}"
 
 # 2. Node Modules Cleanup
