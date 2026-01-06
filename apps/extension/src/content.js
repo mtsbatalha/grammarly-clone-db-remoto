@@ -2,7 +2,7 @@
 // GRAMMARLY CLONE - CONTENT SCRIPT
 // ===========================================
 
-(function() {
+(function () {
   'use strict';
 
   // Configuration
@@ -965,7 +965,7 @@
     } catch (error) {
       console.error('[GrammarlyClone] Replace failed:', error);
       // Fallback: copy to clipboard
-      navigator.clipboard.writeText(newText).catch(() => {});
+      navigator.clipboard.writeText(newText).catch(() => { });
       return false;
     }
   }
@@ -1006,10 +1006,12 @@
         state.activeElement = range.commonAncestorContainer.parentElement;
       }
 
-      // Get position for menu
+      // Get position for menu (use mouse coordinates if available, fallback to range rect)
       const rect = range.getBoundingClientRect();
+      const posX = e && e.clientX !== undefined ? e.clientX : rect.left;
+      const posY = e && e.clientY !== undefined ? e.clientY : rect.bottom;
 
-      showAIMenu(rect.left, rect.bottom);
+      showAIMenu(posX, posY);
     } else {
       hideAIMenu();
     }
@@ -1288,14 +1290,26 @@
       subtree: true,
     });
 
-    // Listen for text selection to show AI menu
-    document.addEventListener('mouseup', handleTextSelection);
+    // Listen for right-click to show AI menu
+    document.addEventListener('contextmenu', (e) => {
+      if (!state.enabled) return;
 
-    // Hide AI menu on click outside
+      const selection = window.getSelection();
+      const text = selection.toString().trim();
+
+      if (text.length >= 3) {
+        e.preventDefault(); // Prevent default context menu
+        handleTextSelection(e);
+      }
+    });
+
+    // Hide AI menu on click
     document.addEventListener('mousedown', (e) => {
-      if (state.aiMenu && !state.aiMenu.contains(e.target)) {
-        const selection = window.getSelection();
-        if (!selection.toString().trim()) {
+      if (state.aiMenu && state.aiMenu.style.display !== 'none') {
+        const path = e.composedPath ? e.composedPath() : [];
+        const isInsideMenu = path.some(el => el === state.aiMenu || (el.id && el.id === 'grammarly-clone-ai-menu'));
+
+        if (!isInsideMenu) {
           hideAIMenu();
         }
       }
