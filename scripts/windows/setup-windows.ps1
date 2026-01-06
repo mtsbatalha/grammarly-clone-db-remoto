@@ -126,8 +126,8 @@ function New-EnvFile {
 NODE_ENV=development
 PORT=3003
 
-# Database (PostgreSQL via Docker)
-DATABASE_URL=postgresql://postgres:postgres@localhost:5434/grammarly_clone
+# Database (Remote Neon DB)
+DATABASE_URL=postgresql://neondb_owner:npg_GEtIZnPkM20N@ep-broad-term-af6syi55-pooler.c-2.us-west-2.aws.neon.tech/grammarly?sslmode=require
 
 # Redis (via Docker)
 REDIS_URL=redis://localhost:6381
@@ -157,7 +157,7 @@ function Start-DockerServices {
     Write-Step "Starting Docker services..."
 
     Set-Location $ProjectRoot
-    docker-compose -f docker-compose.dev.yml up -d
+    docker-compose up -d
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error-Custom "Failed to start Docker services"
@@ -171,29 +171,13 @@ function Start-DockerServices {
 function Wait-ForServices {
     Write-Step "Waiting for services to be ready..."
 
-    # Wait for PostgreSQL
+    # Wait for Redis
     $maxAttempts = 30
-    for ($i = 1; $i -le $maxAttempts; $i++) {
-        try {
-            $null = docker exec grammarly_postgres pg_isready -U postgres 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "PostgreSQL is ready"
-                break
-            }
-        }
-        catch {}
-
-        if ($i -eq $maxAttempts) {
-            Write-Error-Custom "PostgreSQL failed to start"
-            return $false
-        }
-        Start-Sleep -Seconds 1
-    }
 
     # Wait for Redis
     for ($i = 1; $i -le $maxAttempts; $i++) {
         try {
-            $result = docker exec grammarly_redis redis-cli ping 2>&1
+            $result = docker exec grammarly_remotedb_redis redis-cli ping 2>&1
             if ($result -match "PONG") {
                 Write-Success "Redis is ready"
                 break
@@ -222,9 +206,9 @@ function Initialize-Database {
         return $false
     }
 
-    npx prisma db push
+    npx prisma migrate deploy
     if ($LASTEXITCODE -ne 0) {
-        Write-Error-Custom "Failed to push database schema"
+        Write-Error-Custom "Failed to deploy database migrations"
         return $false
     }
 
@@ -265,8 +249,8 @@ function Main {
     Write-Host "  - Check Node.js and Docker"
     Write-Host "  - Install project dependencies"
     Write-Host "  - Configure environment"
-    Write-Host "  - Start Docker services"
-    Write-Host "  - Setup database"
+    Write-Host "  - Start Docker services (Redis, Ollama)"
+    Write-Host "  - Setup database (Remote)"
     Write-Host ""
 
     $continue = Read-Host "Continue? (Y/n)"

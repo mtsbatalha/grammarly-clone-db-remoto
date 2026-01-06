@@ -45,8 +45,8 @@ API_PORT=${API_PORT:-3003}
 WEB_PORT=${WEB_PORT:-5173}
 
 # Container names (matching docker-compose.yml)
-POSTGRES_CONTAINER="grammarly_postgres"
-REDIS_CONTAINER="grammarly_redis"
+REDIS_CONTAINER="grammarly_remotedb_redis"
+OLLAMA_CONTAINER="grammarly_remotedb_ollama"
 
 # Default fallback values for automatic mode
 DEFAULT_GROQ_API_KEY=""  # Empty by default, user can configure later
@@ -415,11 +415,11 @@ create_env_file() {
 NODE_ENV=development
 PORT=$API_PORT
 
-# Database (Docker)
-DATABASE_URL=postgresql://postgres:postgres@localhost:$POSTGRES_PORT/grammarly_clone
+# Database (Remote Neon DB)
+DATABASE_URL=postgresql://neondb_owner:npg_GEtIZnPkM20N@ep-broad-term-af6syi55-pooler.c-2.us-west-2.aws.neon.tech/grammarly?sslmode=require
 
 # Redis (Docker)
-REDIS_URL=redis://localhost:$REDIS_PORT
+REDIS_URL=redis://localhost:6381
 
 # JWT
 JWT_SECRET=$JWT_SECRET
@@ -446,7 +446,7 @@ EOF
 
 # Start Docker services
 start_docker_services() {
-    print_step "Starting Docker services (PostgreSQL, Redis)..."
+    print_step "Starting Docker services (Redis, Ollama)..."
 
     cd "$PROJECT_ROOT" || return 1
 
@@ -463,15 +463,7 @@ start_docker_services() {
     print_step "Waiting for services to be ready..."
     sleep 5
 
-    # Check if PostgreSQL is ready
-    for i in {1..30}; do
-        if docker exec $POSTGRES_CONTAINER pg_isready -U postgres &> /dev/null; then
-            print_success "PostgreSQL is ready"
-            break
-        fi
-        echo "Waiting for PostgreSQL... ($i/30)"
-        sleep 2
-    done
+    # Local PostgreSQL wait removed (using remote Neon DB)
 
     # Check if Redis is ready
     for i in {1..30}; do
@@ -491,11 +483,11 @@ setup_database() {
     cd "$PROJECT_ROOT/apps/api" || return 1
 
     # Run Prisma migrations
-    print_step "Running database migrations..."
+    print_step "Running database migrations on Remote DB..."
     npx prisma generate
-    npx prisma db push
+    npx prisma migrate deploy
 
-    print_success "Database setup complete"
+    print_success "Database migrations complete"
 }
 
 # Build project
@@ -570,8 +562,8 @@ main() {
     echo "This script will install and configure:"
     echo "  - Node.js 20.x"
     echo "  - Docker and Docker Compose"
-    echo "  - PostgreSQL (via Docker)"
     echo "  - Redis (via Docker)"
+    echo "  - Ollama (via Docker)"
     echo "  - Project dependencies"
     echo ""
     echo -e "Installation directory: ${BLUE}$INSTALL_DIR${NC}"
