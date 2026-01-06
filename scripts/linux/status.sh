@@ -115,7 +115,7 @@ check_port_listening() {
 }
 
 get_redis_info() {
-    docker exec grammarly_redis redis-cli info clients 2>/dev/null | grep "connected_clients" | cut -d: -f2 | tr -d '\r'
+    docker exec grammarly_remotedb_redis redis-cli info clients 2>/dev/null | grep "connected_clients" | cut -d: -f2 | tr -d '\r'
 }
 
 # Print functions
@@ -224,9 +224,9 @@ main() {
     fi
     
     # Redis status
-    redis_status=$(check_container_status "grammarly_redis")
-    redis_health=$(check_container_health "grammarly_redis")
-    redis_uptime=$(get_container_uptime "grammarly_redis")
+    redis_status=$(check_container_status "grammarly_remotedb_redis")
+    redis_health=$(check_container_health "grammarly_remotedb_redis")
+    redis_uptime=$(get_container_uptime "grammarly_remotedb_redis")
     redis_clients=""
     
     if [ "$redis_status" = "running" ]; then
