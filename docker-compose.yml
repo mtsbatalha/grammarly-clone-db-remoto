@@ -19,11 +19,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # Ollama (AI Local)
+  # Ollama (AI Local) - OPTIONAL: use `docker compose --profile ollama up -d` to include
   ollama:
     image: ollama/ollama:latest
     container_name: grammarly_remotedb_ollama
     restart: unless-stopped
+    profiles:
+      - ollama
     ports:
       - "11434:11434"
     volumes:
@@ -66,10 +68,9 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
+      # Ollama dependency removed (it's now optional)
 
-  # Web Dashboard
+      # Web Dashboard
   web:
     build:
       context: ./apps/web

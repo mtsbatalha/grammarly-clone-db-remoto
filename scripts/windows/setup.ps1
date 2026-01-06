@@ -84,6 +84,27 @@ if (-not $AutoConfirm) {
         Write-Host "Installation cancelled."
         exit 0
     }
+    
+    Write-Host ""
+    Write-Host "=========================================" -ForegroundColor Cyan
+    Write-Host "  Ollama (Local AI) Configuration" -ForegroundColor Cyan
+    Write-Host "=========================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Ollama allows you to run AI models locally."
+    Write-Host "If you're using Groq/DeepSeek API, you can skip this."
+    Write-Host ""
+    $ollamaChoice = Read-Host "Install Ollama? (y/N)"
+    if ($ollamaChoice -eq "y" -or $ollamaChoice -eq "Y") {
+        $script:IncludeOllama = $true
+        Print-Step "Ollama will be installed"
+    }
+    else {
+        $script:IncludeOllama = $false
+        Print-Step "Skipping Ollama installation"
+    }
+}
+else {
+    $script:IncludeOllama = $false
 }
 
 Write-Host ""
@@ -115,10 +136,20 @@ if (Test-Path "apps\api\.env") {
 # Step 3: Build and start containers
 Print-Step "Building and starting containers..."
 if ($ComposeCmd -eq "docker compose") {
-    docker compose up -d --build
+    if ($script:IncludeOllama) {
+        docker compose --profile ollama up -d --build
+    }
+    else {
+        docker compose up -d --build
+    }
 }
 else {
-    docker-compose up -d --build
+    if ($script:IncludeOllama) {
+        docker-compose --profile ollama up -d --build
+    }
+    else {
+        docker-compose up -d --build
+    }
 }
 Print-Success "Containers started"
 

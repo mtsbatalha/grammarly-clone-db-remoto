@@ -97,6 +97,26 @@ main() {
             echo "Installation cancelled."
             exit 0
         fi
+        
+        echo ""
+        echo -e "${CYAN}=========================================${NC}"
+        echo -e "${CYAN}  Ollama (Local AI) Configuration${NC}"
+        echo -e "${CYAN}=========================================${NC}"
+        echo ""
+        echo "Ollama allows you to run AI models locally."
+        echo "If you're using Groq/DeepSeek API, you can skip this."
+        echo ""
+        read -p "Install Ollama? (y/N) " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            INCLUDE_OLLAMA=true
+            print_step "Ollama will be installed"
+        else
+            INCLUDE_OLLAMA=false
+            print_step "Skipping Ollama installation"
+        fi
+    else
+        INCLUDE_OLLAMA=false
     fi
     
     echo ""
@@ -122,7 +142,11 @@ main() {
     
     # Step 3: Build and start containers
     print_step "Building and starting containers..."
-    $COMPOSE_CMD up -d --build 2>&1 | sed 's/^/  /'
+    if [ "$INCLUDE_OLLAMA" = true ]; then
+        $COMPOSE_CMD --profile ollama up -d --build 2>&1 | sed 's/^/  /'
+    else
+        $COMPOSE_CMD up -d --build 2>&1 | sed 's/^/  /'
+    fi
     print_success "Containers started"
     
     echo ""
