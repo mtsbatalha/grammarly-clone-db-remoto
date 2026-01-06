@@ -16,10 +16,12 @@ Print-Red "==========================================="
 Print-Red ""
 Write-Host "This script will completely wipe the project environment."
 Write-Host "The following will be DELETED PERMANENTLY:"
-Write-Host "  - All Docker containers (API, Database, Redis, Web)"
-Write-Host "  - All Database data (Postgres volumes)"
+Write-Host "  - All Docker containers (API, Redis, Ollama, Web)"
+Write-Host "  - All local data volumes (Redis, Ollama)"
 Write-Host "  - All Docker images created by this project"
 Write-Host "  - All node_modules and build files"
+Write-Host ""
+Write-Host "NOTE: Remote database (Neon) is NOT affected." -ForegroundColor Cyan
 Write-Host ""
 
 # First Confirmation

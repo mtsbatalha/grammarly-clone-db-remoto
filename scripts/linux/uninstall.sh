@@ -5,10 +5,11 @@
 # ===========================================
 # This script will:
 # 1. Stop and remove all containers
-# 2. DELETE ALL DATA VOLUMES (Database loss!)
+# 2. DELETE ALL LOCAL DATA VOLUMES (Redis, Ollama)
 # 3. Remove project Docker images
 # 4. Delete node_modules and build artifacts
 # 5. Optionally delete the entire project directory
+# NOTE: Remote database (Neon) is NOT affected
 # ===========================================
 
 # Colors
@@ -24,10 +25,12 @@ echo "==========================================="
 echo -e "${NC}"
 echo "This script will completely wipe the project environment."
 echo "The following will be DELETED PERMANENTLY:"
-echo "  - All Docker containers (API, Database, Redis, Web)"
-echo "  - All Database data (Postgres volumes)"
+echo "  - All Docker containers (API, Redis, Ollama, Web)"
+echo "  - All local data volumes (Redis, Ollama)"
 echo "  - All Docker images created by this project"
 echo "  - All node_modules and build files"
+echo ""
+echo "NOTE: Remote database (Neon) is NOT affected."
 echo ""
 
 # First Confirmation
@@ -62,8 +65,9 @@ $COMPOSE_CMD down -v --rmi all --remove-orphans
 
 # Remove old volumes that might have been created with generic names
 echo -e "${YELLOW}      Removing any leftover volumes...${NC}"
-docker volume rm postgres_data redis_data ollama_data 2>/dev/null || true
-docker volume rm grammarly_postgres_data grammarly_redis_data grammarly_ollama_data 2>/dev/null || true
+docker volume rm redis_data ollama_data 2>/dev/null || true
+docker volume rm grammarly_redis_data grammarly_ollama_data 2>/dev/null || true
+docker volume rm grammarly_remotedb_redis_data grammarly_remotedb_ollama_data 2>/dev/null || true
 echo -e "${CYAN}Docker resources removed.${NC}"
 
 # 2. Node Modules Cleanup
