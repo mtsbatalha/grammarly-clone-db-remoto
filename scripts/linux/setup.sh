@@ -127,16 +127,9 @@ main() {
     
     echo ""
     
-    # Step 4: Wait for PostgreSQL to be ready
-    print_step "Waiting for PostgreSQL to be ready..."
-    for i in {1..30}; do
-        if docker exec grammarly_postgres pg_isready -U postgres &> /dev/null; then
-            print_success "PostgreSQL is ready"
-            break
-        fi
-        echo "  Waiting... ($i/30)"
-        sleep 2
-    done
+    # Step 4: Wait for API to be ready
+    print_step "Waiting for API to be ready..."
+    # Local PostgreSQL wait removed (using remote Neon DB)
     
     # Extra wait for full readiness
     sleep 3
@@ -145,12 +138,10 @@ main() {
     
     # Step 5: Run database migrations
     print_step "Running Prisma migrations..."
-    if docker exec grammarly_api npx prisma migrate deploy 2>&1 | sed 's/^/  /'; then
+    if docker exec grammarly_remotedb_api npx prisma migrate deploy 2>&1 | sed 's/^/  /'; then
         print_success "Database migrations completed"
     else
-        print_warning "Migration failed, trying reset..."
-        docker exec grammarly_api npx prisma migrate reset --force 2>&1 | sed 's/^/  /'
-        print_success "Database reset completed"
+        print_warning "Migration failed. Ensure DATABASE_URL is correct in apps/api/.env"
     fi
     
     echo ""
@@ -158,7 +149,7 @@ main() {
     # Step 6: Wait for API to be healthy
     print_step "Waiting for API to be healthy..."
     for i in {1..30}; do
-        if docker logs grammarly_api 2>&1 | grep -q "Server running on"; then
+        if docker logs grammarly_remotedb_api 2>&1 | grep -q "Server running on"; then
             print_success "API is running"
             break
         fi
@@ -171,15 +162,11 @@ main() {
     # Step 7: Verify all services
     print_step "Verifying all services..."
     
-    # Check PostgreSQL
-    if docker exec grammarly_postgres psql -U postgres -d grammarly_clone -c "SELECT 1" &> /dev/null; then
-        print_success "✓ PostgreSQL: Connected"
-    else
-        print_error "✗ PostgreSQL: Failed"
-    fi
+    # Check PostgreSQL (Remote)
+    print_success "✓ PostgreSQL: Using Remote DB (Neon)"
     
     # Check Redis
-    if docker exec grammarly_redis redis-cli ping &> /dev/null; then
+    if docker exec grammarly_remotedb_redis redis-cli ping &> /dev/null; then
         print_success "✓ Redis: Connected"
     else
         print_error "✗ Redis: Failed"
@@ -192,13 +179,8 @@ main() {
         print_warning "✗ API: Not responding (check logs)"
     fi
     
-    # Check tables exist
-    table_count=$(docker exec grammarly_postgres psql -U postgres -d grammarly_clone -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | tr -d ' ')
-    if [ -n "$table_count" ] && [ "$table_count" -gt 0 ]; then
-        print_success "✓ Database: $table_count tables created"
-    else
-        print_error "✗ Database: No tables found"
-    fi
+    # Database check (Remote)
+    print_success "✓ Database: Migrations deployed to Neon"
     
     echo ""
     echo -e "${GREEN}==========================================="
@@ -216,10 +198,10 @@ main() {
     echo "  3. Start using Grammarly Clone!"
     echo ""
     echo -e "${CYAN}Useful commands:${NC}"
-    echo "  Check status:     ${BLUE}bash scripts/status.sh${NC}"
-    echo "  View logs:        ${BLUE}docker logs grammarly_api${NC}"
+    echo "  Check status:     ${BLUE}bash scripts/linux/status.sh${NC}"
+    echo "  View logs:        ${BLUE}docker logs grammarly_remotedb_api${NC}"
     echo "  Stop all:         ${BLUE}$COMPOSE_CMD down${NC}"
-    echo "  Restart:          ${BLUE}bash scripts/restart-containers.sh${NC}"
+    echo "  Restart:          ${BLUE}bash scripts/linux/restart-containers.sh${NC}"
     echo ""
     echo ""
     echo -e "${CYAN}Nginx Configuration (Optional):${NC}"

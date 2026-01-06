@@ -370,7 +370,7 @@ check_env() {
 
     if [ ! -f "$PROJECT_ROOT/apps/api/.env" ]; then
         print_error ".env file not found at apps/api/.env"
-        echo "Run './scripts/setup-linux.sh' first or copy from .env.example"
+        echo "Run './scripts/linux/setup-linux.sh' first or copy from .env.example"
         exit 1
     fi
 

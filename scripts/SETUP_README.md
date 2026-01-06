@@ -5,19 +5,19 @@
 ### Linux/Mac
 ```bash
 # Interactive mode (asks for confirmation)
-bash scripts/setup.sh
+bash scripts/linux/setup.sh
 
 # Automated mode (no confirmation)
-bash scripts/setup.sh --yes
+bash scripts/linux/setup.sh --yes
 ```
 
 ### Windows
 ```powershell
 # Interactive mode
-.\scripts\setup.ps1
+.\scripts\windows\setup.ps1
 
 # Automated mode  
-.\scripts\setup.ps1 -AutoConfirm
+.\scripts\windows\setup.ps1 -AutoConfirm
 ```
 
 ## What It Does
@@ -58,19 +58,19 @@ If setup fails:
 docker ps -a
 
 # View API logs
-docker logs grammarly_api
+docker logs grammarly_remotedb_api
 
-# View PostgreSQL logs
-docker logs grammarly_postgres
+# View PostgreSQL logs (Remote DB)
+# Check Neon dashboard
 
 # Check detailed status
-bash scripts/status.sh --detailed
+bash scripts/linux/status.sh --detailed
 ```
 
 ## Important Notes
 
 > [!CAUTION]
-> This script **DELETES ALL DATA**! Use `scripts/backup.sh` first if you need to preserve data.
+> This script **DELETES ALL DATA**! Use `scripts/linux/backup.sh` (Linux) or `scripts/windows/backup.ps1` (Windows) first if you need to preserve data.
 
 > [!TIP]
-> For regular restarts without data loss, use `scripts/restart-containers.sh` instead.
+> For regular restarts without data loss, use `scripts/linux/restart-containers.sh` or `scripts/windows/restart-containers.ps1` instead.
