@@ -167,29 +167,24 @@ export default function Editor() {
     setCorrections(corrections.filter((c) => c !== correction));
   };
 
-  // Handle text selection for AI menu
-  const handleTextSelection = useCallback(() => {
+  // Handle right-click to open AI menu
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (!editor) return;
-
-    // Don't update selection if AI menu is already open (prevents losing range when clicking menu)
-    if (aiMenu.isOpen) return;
 
     const { from, to } = editor.state.selection;
     const selectedText = editor.state.doc.textBetween(from, to, ' ');
 
     if (selectedText && selectedText.trim().length > 2) {
-      // Get selection coordinates
-      const { view } = editor;
-      const coords = view.coordsAtPos(from);
+      e.preventDefault(); // Prevent default context menu
 
       setAiMenu({
         isOpen: true,
         selectedText: selectedText.trim(),
-        position: { x: coords.left, y: coords.bottom },
+        position: { x: e.clientX, y: e.clientY },
         selectionRange: { from, to },
       });
     }
-  }, [editor, aiMenu.isOpen]);
+  }, [editor]);
 
   // Handle AI suggestion replacement
   const handleAIReplace = useCallback(
@@ -215,21 +210,12 @@ export default function Editor() {
     setAiMenu((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  // Listen for selection changes
-  useEffect(() => {
-    if (!editor) return;
-
-    const handleSelectionUpdate = () => {
-      // Delay to ensure selection is complete
-      setTimeout(handleTextSelection, 100);
-    };
-
-    editor.on('selectionUpdate', handleSelectionUpdate);
-
-    return () => {
-      editor.off('selectionUpdate', handleSelectionUpdate);
-    };
-  }, [editor, handleTextSelection]);
+  // Close AI menu when clicking inside editor (but not on right-click)
+  const handleEditorClick = useCallback(() => {
+    if (aiMenu.isOpen) {
+      closeAIMenu();
+    }
+  }, [aiMenu.isOpen, closeAIMenu]);
 
   // Close AI menu on click outside
   useEffect(() => {
@@ -332,7 +318,12 @@ export default function Editor() {
         </div>
 
         {/* Editor */}
-        <div className="card flex-1" ref={editorContainerRef}>
+        <div
+          className="card flex-1"
+          ref={editorContainerRef}
+          onContextMenu={handleContextMenu}
+          onClick={handleEditorClick}
+        >
           <EditorContent
             editor={editor}
             className="prose prose-lg max-w-none dark:prose-invert"

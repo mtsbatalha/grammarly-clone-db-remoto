@@ -167,30 +167,48 @@ Respond with JSON:
     const hasCodeBlocks = text.includes('```') || text.includes('`');
     const hasList = /^[\s]*[-*•]\s/m.test(text) || /^[\s]*\d+\.\s/m.test(text);
 
+    // Detect formatting elements
+    const hasInlineCode = /`[^`]+`/.test(text);
+    const hasQuotes = /"[^"]*"/.test(text);
+    const emptyLineCount = (text.match(/^\s*$/gm) || []).length;
+
     const systemPrompt = `You are a multilingual writing expert.
-Your task is to rewrite texts according to the requested style while preserving structure.
+Your task is to IMPROVE text quality while STRICTLY PRESERVING ALL FORMATTING.
 
 CRITICAL RULE - NEVER TRANSLATE:
 - If the input is in English, your output MUST be in English
 - If the input is in Portuguese, your output MUST be in Portuguese
 - NEVER change the language of the text
 
-CRITICAL RULE - PRESERVE EXACT STRUCTURE:
+CRITICAL RULE - PRESERVE ALL FORMATTING EXACTLY:
 - The input has EXACTLY ${lineCount} lines - your output MUST have EXACTLY ${lineCount} lines
+- Preserve ALL empty/blank lines in their exact positions
+- Preserve ALL paragraph breaks exactly as they appear
 - Each line break in the input MUST appear in the exact same position in the output
 - Use \\n (escaped newline) in the JSON string for each line break
-- Do NOT merge multiple lines into one
+- Do NOT merge multiple lines/paragraphs into one
 - Do NOT split one line into multiple lines
-${hasCodeBlocks ? '- Preserve all code blocks exactly as they are - do not modify code' : ''}
-${hasList ? '- Preserve all list formatting (bullets, numbers) exactly' : ''}
+${hasCodeBlocks ? '- PRESERVE ALL CODE BLOCKS (``` ... ```) exactly as they are - do not modify any code' : ''}
+${hasInlineCode ? '- PRESERVE ALL INLINE CODE (\\`command\\`) exactly as they are - do not modify, remove or change inline code' : ''}
+${hasQuotes ? '- PRESERVE ALL QUOTED TEXT ("text") exactly as they are - keep the quotes and the text inside' : ''}
+${hasList ? '- PRESERVE ALL LIST FORMATTING (bullets, numbers, dashes) exactly as they appear' : ''}
+
+WHAT TO IMPROVE:
+- Fix grammar and spelling errors
+- Improve word choice and clarity
+- Make sentences flow better
+- DO NOT paraphrase or completely rewrite - only make targeted improvements
 
 Respond ONLY with valid JSON.`;
 
-    const userPrompt = `Rewrite the following text to be ${styleDescriptions[style]}.
+    const userPrompt = `Improve the following text to be ${styleDescriptions[style]}.
 
 STRUCTURE INFO:
 - Total lines: ${lineCount}
+- Empty lines: ${emptyLineCount}
 - Has code blocks: ${hasCodeBlocks}
+- Has inline code: ${hasInlineCode}
+- Has quoted text: ${hasQuotes}
 - Has lists: ${hasList}
 
 ORIGINAL TEXT (between triple backticks):
@@ -198,16 +216,19 @@ ORIGINAL TEXT (between triple backticks):
 ${text}
 \`\`\`
 
-MANDATORY RULES:
+MANDATORY RULES - FOLLOW EXACTLY:
 1. KEEP THE SAME LANGUAGE - DO NOT TRANSLATE
 2. Output MUST have EXACTLY ${lineCount} lines (same as input)
-3. Each line break position must be preserved exactly
-4. In the JSON, use \\n for each line break
-5. Do NOT modify any code - only improve surrounding text
+3. PRESERVE ALL EMPTY LINES and paragraph breaks in exact positions
+4. In the JSON, use \\n for each line break (including empty lines)
+5. NEVER modify code blocks or inline code - keep them exactly as written
+6. NEVER remove or modify quoted text - keep quotes and content intact
+7. DO NOT completely rewrite/paraphrase - only make targeted improvements
+8. The structure and format must be IDENTICAL to the original
 
 Respond with JSON:
 {
-  "rewritten": "text with EXACTLY ${lineCount} lines, using \\n for line breaks",
+  "rewritten": "improved text with EXACTLY ${lineCount} lines, preserving ALL formatting, using \\n for line breaks",
   "improvements": ["improvement 1", "improvement 2"]
 }`;
 
