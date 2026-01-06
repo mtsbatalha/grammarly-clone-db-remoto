@@ -32,6 +32,10 @@ if (Test-Path $overrideFile) {
     if ($content -match '(\d+):6379') { $script:REDIS_PORT = [int]$Matches[1] }
 }
 
+$script:REDIS_CONTAINER = "grammarly_remotedb_redis"
+$script:API_CONTAINER = "grammarly_remotedb_api"
+$script:WEB_CONTAINER = "grammarly_remotedb_web"
+
 function Show-Help {
     Write-Host ""
     Write-Host "Grammarly Clone - Service Status"
@@ -118,7 +122,7 @@ function Test-PortListening {
 
 function Get-RedisClients {
     try {
-        $result = docker exec grammarly_redis redis-cli info clients 2>$null
+        $result = docker exec $script:REDIS_CONTAINER redis-cli info clients 2>$null
         if ($result -match 'connected_clients:(\d+)') {
             return $Matches[1]
         }
@@ -186,10 +190,19 @@ function Main {
     }
     
     # Gather status
-    $redisStatus = Get-ContainerStatus "grammarly_redis"
-    $redisHealth = Get-ContainerHealth "grammarly_redis"
-    $redisUptime = Get-ContainerUptime "grammarly_redis"
+    $redisStatus = Get-ContainerStatus $script:REDIS_CONTAINER
+    $redisHealth = Get-ContainerHealth $script:REDIS_CONTAINER
+    $redisUptime = Get-ContainerUptime $script:REDIS_CONTAINER
     $redisClients = if ($redisStatus -eq "running") { Get-RedisClients } else { "" }
+    
+    $dbConnStatus = "checking..."
+    if ($apiStatus -eq "running") {
+        $dbCheck = docker exec $script:API_CONTAINER npx prisma db pull --print 2>$null
+        if ($LASTEXITCODE -eq 0) { $dbConnStatus = "connected" } else { $dbConnStatus = "failed" }
+    }
+    else {
+        $dbConnStatus = "offline"
+    }
     
     $apiStatus = if (Test-PortListening $script:API_PORT) { "running" } else { "stopped" }
     $webStatus = if (Test-PortListening $script:WEB_PORT) { "running" } else { "stopped" }
@@ -199,8 +212,9 @@ function Main {
             timestamp = (Get-Date -Format "o")
             services  = @{
                 postgresql = @{
-                    status   = "remote"
-                    provider = "Neon"
+                    status     = "remote"
+                    provider   = "Neon"
+                    connection = $dbConnStatus
                 }
                 redis      = @{
                     status  = $redisStatus
@@ -224,7 +238,18 @@ function Main {
     }
     
     # Print status
-    Write-Host "  ☁ PostgreSQL          remote      Using Neon (cloud)" -ForegroundColor Cyan
+    if ($dbConnStatus -eq "connected") {
+        Write-Host "  ● " -ForegroundColor Green -NoNewline
+        Write-Host "PostgreSQL          " -NoNewline
+        Write-Host "remote      " -ForegroundColor Green -NoNewline
+        Write-Host "Connected to Neon"
+    }
+    else {
+        Write-Host "  ● " -ForegroundColor Red -NoNewline
+        Write-Host "PostgreSQL          " -NoNewline
+        Write-Host "remote      " -ForegroundColor Red -NoNewline
+        Write-Host "$dbConnStatus"
+    }
     
     $redisExtra = ""
     if ($redisClients) { $redisExtra = "Clients: $redisClients " }
@@ -238,20 +263,22 @@ function Main {
     if ($Detailed) {
         Write-Host ""
         Write-Host "Docker Containers:" -ForegroundColor Cyan
-        docker ps --filter "name=grammarly" --format "table {{.Names}}`t{{.Status}}`t{{.Ports}}"
+        docker ps --filter "name=grammarly_remotedb" --format "table {{.Names}}`t{{.Status}}`t{{.Ports}}"
         
         Write-Host ""
         Write-Host "Resource Usage:" -ForegroundColor Cyan
-        $containers = docker ps -q --filter "name=grammarly"
+        $containers = docker ps -q --filter "name=grammarly_remotedb"
         if ($containers) {
             docker stats --no-stream --format "table {{.Name}}`t{{.CPUPerc}}`t{{.MemUsage}}" $containers
         }
         
         Write-Host ""
         Write-Host "Recent Logs (last 5 lines each):" -ForegroundColor Cyan
+        Write-Host "API Logs:" -ForegroundColor Yellow
+        docker logs --tail 5 $script:API_CONTAINER 2>&1 | ForEach-Object { Write-Host "  $_" }
         Write-Host ""
         Write-Host "Redis:" -ForegroundColor Yellow
-        docker logs --tail 5 grammarly_redis 2>&1 | ForEach-Object { Write-Host "  $_" }
+        docker logs --tail 5 $script:REDIS_CONTAINER 2>&1 | ForEach-Object { Write-Host "  $_" }
     }
     
     Write-Host ""

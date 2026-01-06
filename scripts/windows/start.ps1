@@ -174,7 +174,8 @@ function Test-PortConflicts {
         Write-Warning-Custom "Port $($script:POSTGRES_PORT) (PostgreSQL) is in use by: $process"
         $newPort = Find-AvailablePort -StartPort ($script:POSTGRES_PORT + 1)
         if ($newPort) {
-            $conflicts += "PostgreSQL: $($script:POSTGRES_PORT) -> $newPort"
+            # PostgreSQL conflict check skipped (Remote DB)
+
             $portChanges += "`$env:POSTGRES_PORT=$newPort"
             $script:POSTGRES_PORT = $newPort
         }

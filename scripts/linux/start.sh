@@ -164,20 +164,7 @@ check_port_conflicts() {
     local conflicts=()
     local port_changes=()
 
-    # Check PostgreSQL port
-    if is_port_in_use $POSTGRES_PORT; then
-        local process=$(get_port_process $POSTGRES_PORT)
-        print_warning "Port $POSTGRES_PORT (PostgreSQL) is in use by: $process"
-        local new_port=$(find_available_port $((POSTGRES_PORT + 1)))
-        if [ -n "$new_port" ]; then
-            conflicts+=("PostgreSQL: $POSTGRES_PORT -> $new_port")
-            port_changes+=("POSTGRES_PORT=$new_port")
-            POSTGRES_PORT=$new_port
-        else
-            print_error "No available port found for PostgreSQL"
-            exit 1
-        fi
-    fi
+    # PostgreSQL conflict check skipped (Remote DB)
 
     # Check Redis port
     if is_port_in_use $REDIS_PORT; then
@@ -311,7 +298,7 @@ check_docker() {
 
 # Start Docker services
 start_docker() {
-    print_step "Starting Docker services (PostgreSQL, Redis)..."
+    print_step "Starting Docker services (Redis, Ollama)..."
 
     cd "$PROJECT_ROOT"
 
@@ -337,18 +324,7 @@ start_docker() {
 wait_for_services() {
     print_step "Waiting for services to be ready..."
 
-    # Wait for PostgreSQL
-    for i in {1..30}; do
-        if docker exec grammarly_postgres pg_isready -U postgres &> /dev/null; then
-            print_success "PostgreSQL is ready (port $POSTGRES_PORT)"
-            break
-        fi
-        if [ $i -eq 30 ]; then
-            print_error "PostgreSQL failed to start"
-            exit 1
-        fi
-        sleep 1
-    done
+    # Local PostgreSQL wait removed (using remote Neon DB)
 
     # Wait for Redis
     for i in {1..30}; do
@@ -392,8 +368,8 @@ start_app() {
     echo -e "  Web:  ${BLUE}http://localhost:${WEB_PORT}${NC}"
     echo -e "  API:  ${BLUE}http://localhost:${API_PORT}${NC}"
     echo ""
-    echo -e "  Database Ports:"
-    echo -e "    PostgreSQL: ${BLUE}localhost:${POSTGRES_PORT}${NC}"
+    echo -e "  Database Connection:"
+    echo -e "    PostgreSQL: ${BLUE}Neon (Cloud)${NC}"
     echo -e "    Redis:      ${BLUE}localhost:${REDIS_PORT}${NC}"
     echo ""
     echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop"

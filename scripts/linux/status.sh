@@ -198,13 +198,29 @@ main() {
     fi
     
     # PostgreSQL status - Remote DB
+    db_conn="checking..."
+    if [ "$(check_container_status "grammarly_remotedb_api")" = "running" ]; then
+        if docker exec grammarly_remotedb_api npx prisma db pull --print 2>/dev/null | grep -q "datasource"; then
+            db_conn="connected"
+        else
+            db_conn="failed"
+        fi
+    else
+        db_conn="offline (API container not running)"
+    fi
+
     if [ "$JSON_OUTPUT" = true ]; then
         echo '    "postgresql": {'
         echo '      "status": "remote",'
-        echo '      "provider": "Neon"'
+        echo '      "provider": "Neon",'
+        echo "      \"connection\": \"$db_conn\""
         echo '    },'
     else
-        echo -e "  ${CYAN}☁${NC}  PostgreSQL          remote      Using Neon (cloud)"
+        if [ "$db_conn" = "connected" ]; then
+            echo -e "  ${GREEN}☁${NC}  PostgreSQL          ${GREEN}remote${NC}      Connected to Neon"
+        else
+            echo -e "  ${RED}☁${NC}  PostgreSQL          ${RED}remote${NC}      $db_conn"
+        fi
     fi
     
     # Redis status
@@ -273,8 +289,8 @@ main() {
         echo ""
         echo -e "${CYAN}Recent Logs (last 5 lines each):${NC}"
         echo ""
-        echo -e "${YELLOW}PostgreSQL:${NC}"
-        docker logs --tail 5 grammarly_postgres 2>&1 | sed 's/^/  /'
+        echo -e "${YELLOW}API Logs:${NC}"
+        docker logs --tail 5 grammarly_remotedb_api 2>&1 | sed 's/^/  /'
         echo ""
         echo -e "${YELLOW}Redis:${NC}"
         docker logs --tail 5 grammarly_redis 2>&1 | sed 's/^/  /'
