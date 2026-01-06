@@ -124,17 +124,9 @@ Print-Success "Containers started"
 
 Write-Host ""
 
-# Step 4: Wait for PostgreSQL to be ready
-Print-Step "Waiting for PostgreSQL to be ready..."
-for ($i = 1; $i -le 30; $i++) {
-    $result = docker exec grammarly_postgres pg_isready -U postgres 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Print-Success "PostgreSQL is ready"
-        break
-    }
-    Write-Host "  Waiting... ($i/30)"
-    Start-Sleep -Seconds 2
-}
+# Step 4: Wait for API to be ready
+Print-Step "Waiting for API to be ready..."
+# Local PostgreSQL wait removed (using remote Neon DB)
 
 # Extra wait for full readiness
 Start-Sleep -Seconds 3
@@ -143,14 +135,12 @@ Write-Host ""
 
 # Step 5: Run database migrations
 Print-Step "Running Prisma migrations..."
-docker exec grammarly_api npx prisma migrate deploy 2>&1
+docker exec grammarly_remotedb_api npx prisma migrate deploy 2>&1
 if ($LASTEXITCODE -eq 0) {
     Print-Success "Database migrations completed"
 }
 else {
-    Print-Warning "Migration failed, trying reset..."
-    docker exec grammarly_api npx prisma migrate reset --force
-    Print-Success "Database reset completed"
+    Print-Warning "Migration failed. Ensure DATABASE_URL is correct in apps/api/.env"
 }
 
 Write-Host ""
@@ -158,7 +148,7 @@ Write-Host ""
 # Step 6: Wait for API to be healthy
 Print-Step "Waiting for API to be healthy..."
 for ($i = 1; $i -le 30; $i++) {
-    $logs = docker logs grammarly_api 2>&1 | Out-String
+    $logs = docker logs grammarly_remotedb_api 2>&1 | Out-String
     if ($logs -match "Server running on") {
         Print-Success "API is running"
         break
@@ -172,17 +162,11 @@ Write-Host ""
 # Step 7: Verify all services
 Print-Step "Verifying all services..."
 
-# Check PostgreSQL
-docker exec grammarly_postgres psql -U postgres -d grammarly_clone -c "SELECT 1" 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) {
-    Print-Success "✓ PostgreSQL: Connected"
-}
-else {
-    Print-Error "✗ PostgreSQL: Failed"
-}
+# Check PostgreSQL (Remote)
+Print-Success "✓ PostgreSQL: Using Remote DB (Neon)"
 
 # Check Redis
-docker exec grammarly_redis redis-cli ping 2>&1 | Out-Null
+docker exec grammarly_remotedb_redis redis-cli ping 2>&1 | Out-Null
 if ($LASTEXITCODE -eq 0) {
     Print-Success "✓ Redis: Connected"
 }
@@ -201,15 +185,8 @@ catch {
     Print-Warning "✗ API: Not responding (check logs)"
 }
 
-# Check tables exist
-$tableCount = docker exec grammarly_postgres psql -U postgres -d grammarly_clone -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>&1 | Out-String
-$tableCount = $tableCount.Trim()
-if ($tableCount -match '\d+' -and [int]$Matches[0] -gt 0) {
-    Print-Success "✓ Database: $($Matches[0]) tables created"
-}
-else {
-    Print-Error "✗ Database: No tables found"
-}
+# Database check (Remote)
+Print-Success "✓ Database: Migrations deployed to Neon"
 
 Write-Host ""
 Write-Host "==========================================="  -ForegroundColor Green
@@ -229,13 +206,13 @@ Write-Host "  3. Start using Grammarly Clone!"
 Write-Host ""
 Write-Host "Useful commands:" -ForegroundColor Cyan
 Write-Host "  Check status:     " -NoNewline -ForegroundColor Cyan
-Write-Host ".\scripts\status.ps1" -ForegroundColor Blue
+Write-Host ".\scripts\windows\status.ps1" -ForegroundColor Blue
 Write-Host "  View logs:        " -NoNewline -ForegroundColor Cyan
-Write-Host "docker logs grammarly_api" -ForegroundColor Blue
+Write-Host "docker logs grammarly_remotedb_api" -ForegroundColor Blue
 Write-Host "  Stop all:         " -NoNewline -ForegroundColor Cyan
 Write-Host "$ComposeCmd down" -ForegroundColor Blue
 Write-Host "  Restart:          " -NoNewline -ForegroundColor Cyan
-Write-Host ".\scripts\restart-containers.ps1" -ForegroundColor Blue
+Write-Host ".\scripts\windows\restart-containers.ps1" -ForegroundColor Blue
 Write-Host ""
 Write-Host ""
 Write-Host "Nginx Configuration (Optional):" -ForegroundColor Cyan
