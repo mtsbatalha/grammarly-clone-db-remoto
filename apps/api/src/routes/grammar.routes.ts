@@ -5,7 +5,6 @@ import { prisma } from '../config/database.js';
 import { cache, cacheKeys } from '../config/redis.js';
 import { ApiError } from '../utils/ApiError.js';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
-import { userRateLimiter } from '../middleware/rateLimiter.js';
 import { AIProviderFactory } from '../services/ai/AIProviderFactory.js';
 import { GrammarService } from '../services/GrammarService.js';
 
@@ -64,7 +63,7 @@ const aiProvider = AIProviderFactory.create();
 const grammarService = new GrammarService(aiProvider);
 
 // POST /api/v1/grammar/check
-router.post('/check', optionalAuth, userRateLimiter, async (req, res, next) => {
+router.post('/check', optionalAuth, async (req, res, next) => {
   try {
     const body = checkGrammarSchema.parse(req.body);
 
@@ -229,7 +228,7 @@ router.post('/check', optionalAuth, userRateLimiter, async (req, res, next) => {
 });
 
 // POST /api/v1/grammar/tone
-router.post('/tone', authenticate, userRateLimiter, async (req, res, next) => {
+router.post('/tone', authenticate, async (req, res, next) => {
   try {
     const body = toneAdjustSchema.parse(req.body);
 
@@ -256,7 +255,6 @@ router.post('/tone', authenticate, userRateLimiter, async (req, res, next) => {
 router.post(
   '/rewrite',
   optionalAuth,
-  userRateLimiter,
   async (req, res, next) => {
     try {
       const { text, language, style } = z
@@ -282,7 +280,6 @@ router.post(
 router.post(
   '/translate',
   optionalAuth,
-  userRateLimiter,
   async (req, res, next) => {
     try {
       const { text, targetLanguage } = z

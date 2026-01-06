@@ -12,7 +12,6 @@ import { logger } from './config/logger.js';
 import { prisma } from './config/database.js';
 import { redis } from './config/redis.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { rateLimiter } from './middleware/rateLimiter.js';
 import { setupSocketHandlers } from './socket/index.js';
 
 // Routes
@@ -44,7 +43,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
-app.use(rateLimiter);
+// Rate limiter disabled
 
 // Health check
 app.get('/health', async (req, res) => {
