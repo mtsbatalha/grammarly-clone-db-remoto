@@ -114,10 +114,6 @@ check_port_listening() {
     fi
 }
 
-get_postgres_connections() {
-    docker exec grammarly_postgres psql -U postgres -d grammarly_clone -t -c "SELECT count(*) FROM pg_stat_activity WHERE datname = 'grammarly_clone';" 2>/dev/null | tr -d ' '
-}
-
 get_redis_info() {
     docker exec grammarly_redis redis-cli info clients 2>/dev/null | grep "connected_clients" | cut -d: -f2 | tr -d '\r'
 }
@@ -195,34 +191,20 @@ main() {
         exit 1
     fi
     
-    # Initialize JSON output
     if [ "$JSON_OUTPUT" = true ]; then
-        echo "{"
+        echo '{'
         echo '  "timestamp": "'$(date -Iseconds)'",'
         echo '  "services": {'
     fi
     
-    # PostgreSQL status
-    pg_status=$(check_container_status "grammarly_postgres")
-    pg_health=$(check_container_health "grammarly_postgres")
-    pg_uptime=$(get_container_uptime "grammarly_postgres")
-    pg_conns=""
-    
-    if [ "$pg_status" = "running" ]; then
-        pg_conns=$(get_postgres_connections)
-        [ -n "$pg_conns" ] && pg_extra="Connections: $pg_conns"
-    fi
-    
+    # PostgreSQL status - Remote DB
     if [ "$JSON_OUTPUT" = true ]; then
         echo '    "postgresql": {'
-        echo "      \"status\": \"$pg_status\","
-        echo "      \"health\": \"$pg_health\","
-        echo "      \"port\": $POSTGRES_PORT,"
-        echo "      \"uptime\": \"$pg_uptime\","
-        echo "      \"connections\": \"$pg_conns\""
+        echo '      "status": "remote",'
+        echo '      "provider": "Neon"'
         echo '    },'
     else
-        print_service_status "PostgreSQL" "${pg_health:-$pg_status}" "$POSTGRES_PORT" "$pg_extra (uptime: $pg_uptime)"
+        echo -e "  ${CYAN}☁${NC}  PostgreSQL          remote      Using Neon (cloud)"
     fi
     
     # Redis status
@@ -303,10 +285,6 @@ main() {
         echo -e "${CYAN}Quick Links:${NC}"
         echo -e "  Web:  ${BLUE}http://localhost:$WEB_PORT${NC}"
         echo -e "  API:  ${BLUE}http://localhost:$API_PORT${NC}"
-        echo ""
-        echo -e "${CYAN}Nginx Proxy Config:${NC}"
-        echo -e "  Frontend -> ${BLUE}http://127.0.0.1:$WEB_PORT${NC}"
-        echo -e "  Backend  -> ${BLUE}http://127.0.0.1:$API_PORT${NC}"
         echo ""
     fi
 }

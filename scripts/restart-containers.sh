@@ -5,26 +5,17 @@
 # ===========================================
 #
 # Usage:
-#   ./restart-containers.sh         # Restart main services only
-#   ./restart-containers.sh --all   # Restart all services including NGINX Proxy Manager
-#   ./restart-containers.sh --npm   # Restart NGINX Proxy Manager only
+#   ./restart-containers.sh              # Restart all services
+#   ./restart-containers.sh --reset-ports # Reset to default ports
 #
 
 set -e
 
 # Parse arguments
-RESTART_ALL=false
-RESTART_NPM_ONLY=false
 RESET_PORTS=false
 
 for arg in "$@"; do
     case $arg in
-        --all|-a)
-            RESTART_ALL=true
-            ;;
-        --npm|-n)
-            RESTART_NPM_ONLY=true
-            ;;
         --reset-ports|-r)
             RESET_PORTS=true
             ;;
@@ -76,25 +67,6 @@ get_project_root() {
     echo "$PROJECT_ROOT"
 }
 
-# Restart NGINX Proxy Manager
-restart_npm() {
-    print_step "Stopping NGINX Proxy Manager..."
-    $DOCKER_COMPOSE -f docker-compose.npm.yml down 2>&1 || true
-
-    print_step "Starting NGINX Proxy Manager..."
-    $DOCKER_COMPOSE -f docker-compose.npm.yml up -d
-
-    # Wait for NPM to be ready
-    print_step "Waiting for NGINX Proxy Manager..."
-    for i in {1..30}; do
-        if curl -s http://localhost:81 > /dev/null 2>&1; then
-            print_success "NGINX Proxy Manager is ready"
-            break
-        fi
-        echo "Waiting for NPM... ($i/30)"
-        sleep 2
-    done
-}
 
 # Restart main services
 restart_main() {
@@ -138,19 +110,6 @@ restart_main() {
     print_step "Waiting for services to be ready..."
     sleep 3
 
-    # Check PostgreSQL
-    POSTGRES_CONTAINER="grammarly_postgres"
-    for i in {1..30}; do
-        if docker exec $POSTGRES_CONTAINER pg_isready -U postgres &> /dev/null; then
-            print_success "PostgreSQL is ready"
-            # Extra wait for PostgreSQL to be fully ready for connections
-            sleep 3
-            break
-        fi
-        echo "Waiting for PostgreSQL... ($i/30)"
-        sleep 2
-    done
-
     # Check Redis
     REDIS_CONTAINER="grammarly_redis"
     for i in {1..30}; do
@@ -187,14 +146,10 @@ main() {
     echo "==========================================="
     echo -e "${NC}"
 
-    if $RESTART_NPM_ONLY; then
-        echo "Mode: NGINX Proxy Manager only"
-    elif $RESTART_ALL; then
-        echo "Mode: All services (including NGINX Proxy Manager)"
+    if $RESET_PORTS; then
+        echo "Mode: All services (resetting ports)"
     else
-        echo "Mode: Main services only"
-        echo "  Use --all to include NGINX Proxy Manager"
-        echo "  Use --npm to restart only NGINX Proxy Manager"
+        echo "Mode: All services"
         echo "  Use --reset-ports to reset to default ports"
     fi
 
@@ -222,16 +177,8 @@ main() {
         DOCKER_COMPOSE="docker-compose"
     fi
 
-    # Restart based on mode
-    if $RESTART_NPM_ONLY; then
-        restart_npm
-    elif $RESTART_ALL; then
-        restart_main
-        echo ""
-        restart_npm
-    else
-        restart_main
-    fi
+    # Restart services
+    restart_main
 
     echo ""
     echo -e "${GREEN}==========================================="

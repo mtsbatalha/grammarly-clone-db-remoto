@@ -21,7 +21,6 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
 
 # Default ports
-$script:POSTGRES_PORT = 5434
 $script:REDIS_PORT = 6381
 $script:API_PORT = 3003
 $script:WEB_PORT = 5173
@@ -30,7 +29,6 @@ $script:WEB_PORT = 5173
 $overrideFile = Join-Path $ProjectRoot "docker-compose.override.yml"
 if (Test-Path $overrideFile) {
     $content = Get-Content $overrideFile -Raw
-    if ($content -match '(\d+):5432') { $script:POSTGRES_PORT = [int]$Matches[1] }
     if ($content -match '(\d+):6379') { $script:REDIS_PORT = [int]$Matches[1] }
 }
 
@@ -118,16 +116,6 @@ function Test-PortListening {
     }
 }
 
-function Get-PostgresConnections {
-    try {
-        $result = docker exec grammarly_postgres psql -U postgres -d grammarly_clone -t -c "SELECT count(*) FROM pg_stat_activity WHERE datname = 'grammarly_clone';" 2>$null
-        return $result.Trim()
-    }
-    catch {
-        return ""
-    }
-}
-
 function Get-RedisClients {
     try {
         $result = docker exec grammarly_redis redis-cli info clients 2>$null
@@ -198,11 +186,6 @@ function Main {
     }
     
     # Gather status
-    $pgStatus = Get-ContainerStatus "grammarly_postgres"
-    $pgHealth = Get-ContainerHealth "grammarly_postgres"
-    $pgUptime = Get-ContainerUptime "grammarly_postgres"
-    $pgConns = if ($pgStatus -eq "running") { Get-PostgresConnections } else { "" }
-    
     $redisStatus = Get-ContainerStatus "grammarly_redis"
     $redisHealth = Get-ContainerHealth "grammarly_redis"
     $redisUptime = Get-ContainerUptime "grammarly_redis"
@@ -216,11 +199,8 @@ function Main {
             timestamp = (Get-Date -Format "o")
             services  = @{
                 postgresql = @{
-                    status      = $pgStatus
-                    health      = $pgHealth
-                    port        = $script:POSTGRES_PORT
-                    uptime      = $pgUptime
-                    connections = $pgConns
+                    status   = "remote"
+                    provider = "Neon"
                 }
                 redis      = @{
                     status  = $redisStatus
@@ -244,10 +224,7 @@ function Main {
     }
     
     # Print status
-    $pgExtra = ""
-    if ($pgConns) { $pgExtra = "Connections: $pgConns " }
-    $pgExtra += "(uptime: $pgUptime)"
-    Write-ServiceStatus "PostgreSQL" $(if ($pgHealth) { $pgHealth } else { $pgStatus }) $script:POSTGRES_PORT $pgExtra
+    Write-Host "  ☁ PostgreSQL          remote      Using Neon (cloud)" -ForegroundColor Cyan
     
     $redisExtra = ""
     if ($redisClients) { $redisExtra = "Clients: $redisClients " }
@@ -273,9 +250,6 @@ function Main {
         Write-Host ""
         Write-Host "Recent Logs (last 5 lines each):" -ForegroundColor Cyan
         Write-Host ""
-        Write-Host "PostgreSQL:" -ForegroundColor Yellow
-        docker logs --tail 5 grammarly_postgres 2>&1 | ForEach-Object { Write-Host "  $_" }
-        Write-Host ""
         Write-Host "Redis:" -ForegroundColor Yellow
         docker logs --tail 5 grammarly_redis 2>&1 | ForEach-Object { Write-Host "  $_" }
     }
@@ -286,12 +260,6 @@ function Main {
     Write-Host "http://localhost:$($script:WEB_PORT)" -ForegroundColor Blue
     Write-Host "  API:  " -NoNewline
     Write-Host "http://localhost:$($script:API_PORT)" -ForegroundColor Blue
-    Write-Host ""
-    Write-Host "Nginx Proxy Config:" -ForegroundColor Cyan
-    Write-Host "  Frontend -> " -NoNewline
-    Write-Host "http://127.0.0.1:$($script:WEB_PORT)" -ForegroundColor Blue
-    Write-Host "  Backend  -> " -NoNewline
-    Write-Host "http://127.0.0.1:$($script:API_PORT)" -ForegroundColor Blue
     Write-Host ""
 }
 
