@@ -3,30 +3,26 @@
   "version": "1.0.0",
   "private": true,
   "description": "Clone completo do Grammarly com extensão de navegador e dashboard web",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
     "dev": "turbo run dev",
-    "dev:api": "npm run dev --workspace=@grammarly-clone-remotedb/api",
-    "dev:web": "npm run dev --workspace=@grammarly-clone-remotedb/web",
+    "dev:api": "pnpm --filter @grammarly-clone-remotedb/api dev",
+    "dev:web": "pnpm --filter @grammarly-clone-remotedb/web dev",
     "build": "turbo run build",
     "start": "turbo run start",
     "start:all": "node scripts/start-all.js",
     "start:clean": "node scripts/start-all.js --clean",
     "start:rebuild": "node scripts/start-all.js --rebuild",
-    "stop": "docker-compose -f docker-compose.dev.yml down",
-    "docker:clean": "docker-compose -f docker-compose.dev.yml down -v --remove-orphans && docker builder prune -f && docker image prune -f",
+    "stop": "docker compose -f docker-compose.dev.yml down",
+    "docker:clean": "docker compose -f docker-compose.dev.yml down -v --remove-orphans && docker builder prune -f && docker image prune -f",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "db:migrate": "npm run db:migrate --workspace=@grammarly-clone-remotedb/api",
-    "db:seed": "npm run db:seed --workspace=@grammarly-clone-remotedb/api",
-    "db:studio": "npm run db:studio --workspace=@grammarly-clone-remotedb/api",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down",
-    "docker:dev": "docker-compose -f docker-compose.dev.yml up -d",
-    "docker:dev:down": "docker-compose -f docker-compose.dev.yml down",
+    "db:migrate": "pnpm --filter @grammarly-clone-remotedb/api db:migrate",
+    "db:seed": "pnpm --filter @grammarly-clone-remotedb/api db:seed",
+    "db:studio": "pnpm --filter @grammarly-clone-remotedb/api db:studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up -d",
+    "docker:dev:down": "docker compose -f docker-compose.dev.yml down",
     "setup:linux": "chmod +x scripts/linux/setup-linux.sh && ./scripts/linux/setup-linux.sh",
     "setup:windows": "powershell -ExecutionPolicy Bypass -File scripts/windows/setup-windows.ps1",
     "clean": "turbo run clean && rm -rf node_modules"
@@ -41,5 +37,5 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "packageManager": "npm@10.0.0"
+  "packageManager": "pnpm@9.0.0"
 }
