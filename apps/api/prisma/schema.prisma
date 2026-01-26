@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -120,11 +120,11 @@ model UserSettings {
   autoCorrect           Boolean     @default(false) @map("auto_correct")
   darkMode              Boolean     @default(false) @map("dark_mode")
 
-  // Dicionário pessoal
-  personalDictionary    String[]    @default([]) @map("personal_dictionary")
+  // Dicionário pessoal (JSON para compatibilidade com MySQL)
+  personalDictionary    Json?       @map("personal_dictionary")
 
-  // Ignorar regras específicas
-  ignoredRules          String[]    @default([]) @map("ignored_rules")
+  // Ignorar regras específicas (JSON para compatibilidade com MySQL)
+  ignoredRules          Json?       @map("ignored_rules")
 
   createdAt             DateTime    @default(now()) @map("created_at")
   updatedAt             DateTime    @updatedAt @map("updated_at")

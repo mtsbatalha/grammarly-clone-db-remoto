@@ -34,7 +34,7 @@ Clone completo do Grammarly com suporte para Português e Inglês, incluindo:
     ┌──────────┴──────────┐
     ▼                     ▼
 ┌────────────┐    ┌──────────────┐
-│   Redis    │    │  PostgreSQL  │
+│   Redis    │    │    MySQL     │
 │  (Cache)   │    │   (Data)     │
 └────────────┘    └──────────────┘
                │
@@ -52,7 +52,7 @@ Clone completo do Grammarly com suporte para Português e Inglês, incluindo:
 - **Runtime**: Node.js 20+ com TypeScript
 - **Framework**: Express.js + Socket.io
 - **ORM**: Prisma
-- **Database**: PostgreSQL 15+
+- **Database**: MySQL 8.0+
 - **Cache**: Redis 7+
 - **Validação**: Zod
 - **Auth**: JWT + bcrypt
@@ -94,7 +94,7 @@ grammarly-clone/
 
 ### Pré-requisitos
 - Node.js 20+
-- PostgreSQL 15+
+- MySQL 8.0+
 - Redis 7+
 - Ollama (para IA local)
 

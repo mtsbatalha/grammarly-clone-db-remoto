@@ -55,8 +55,9 @@ services:
       retries: 3
       start_period: 40s
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://neondb_owner:npg_GEtIZnPkM20N@ep-broad-term-af6syi55-pooler.c-2.us-west-2.aws.neon.tech/grammarly?sslmode=require
+      # IMPORTANTE: Atualize a DATABASE_URL para seu servidor MySQL remoto
+      # Formato: mysql://usuario:senha@host:porta/database
+      - DATABASE_URL=mysql://usuario:senha@seu-mysql-host:3306/grammarly
       - REDIS_URL=redis://grammarly_remotedb_redis:6379
       - OLLAMA_BASE_URL=http://grammarly_remotedb_ollama:11434
       - JWT_SECRET=sua-chave-secreta-muito-segura-aqui-min-32-chars
