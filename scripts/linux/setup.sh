@@ -266,6 +266,14 @@ main() {
     
     cd "$PROJECT_ROOT/apps/api"
     
+    # Export DATABASE_URL from root .env for Prisma
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        export $(grep -E "^DATABASE_URL=" "$PROJECT_ROOT/.env" | xargs)
+        print_info "DATABASE_URL loaded from .env"
+    else
+        print_warning "No .env file found at project root"
+    fi
+    
     # Generate Prisma client and run migrations
     if npx prisma generate 2>&1 | sed 's/^/  /'; then
         print_success "Prisma client generated"
