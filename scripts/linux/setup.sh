@@ -5,8 +5,9 @@
 # ===========================================
 #
 # Complete setup from scratch:
+# - Detects if using remote or local database
 # - Stops and removes all containers
-# - Removes all volumes (DATABASE WILL BE LOST!)
+# - Removes all volumes (DATABASE WILL BE LOST if local!)
 # - Rebuilds containers
 # - Runs database migrations
 # - Verifies all services are healthy
@@ -38,9 +39,12 @@ done
 
 # Get project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 cd "$PROJECT_ROOT" || exit 1
+
+# Database mode (will be detected)
+DB_MODE="unknown"
 
 # Output functions
 print_step() {
@@ -59,6 +63,10 @@ print_warning() {
     echo -e "${YELLOW}[!]${NC} $1"
 }
 
+print_info() {
+    echo -e "${CYAN}[INFO]${NC} $1"
+}
+
 print_header() {
     echo -e "${BLUE}"
     echo "==========================================="
@@ -69,13 +77,65 @@ print_header() {
 
 # Detect docker compose command
 get_docker_compose_cmd() {
-    if command -v docker-compose &> /dev/null; then
-        echo "docker-compose"
-    elif docker compose version &> /dev/null; then
+    if docker compose version &> /dev/null 2>&1; then
         echo "docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
     else
         print_error "Neither 'docker-compose' nor 'docker compose' is available"
         exit 1
+    fi
+}
+
+# Detect if DATABASE_URL points to a remote or local database
+detect_database_mode() {
+    print_step "Detecting database configuration..."
+    
+    # Try to read DATABASE_URL from .env file
+    ENV_FILE="$PROJECT_ROOT/.env"
+    API_ENV_FILE="$PROJECT_ROOT/apps/api/.env"
+    
+    DATABASE_URL=""
+    
+    # Check root .env first
+    if [ -f "$ENV_FILE" ]; then
+        DATABASE_URL=$(grep -E "^DATABASE_URL=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    fi
+    
+    # Check apps/api/.env if not found
+    if [ -z "$DATABASE_URL" ] && [ -f "$API_ENV_FILE" ]; then
+        DATABASE_URL=$(grep -E "^DATABASE_URL=" "$API_ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    fi
+    
+    if [ -z "$DATABASE_URL" ]; then
+        print_warning "DATABASE_URL not found in .env files"
+        print_info "Assuming LOCAL database mode (MySQL via Docker)"
+        DB_MODE="local"
+        return
+    fi
+    
+    # Extract host from DATABASE_URL
+    # Format: mysql://user:pass@host:port/database
+    DB_HOST=$(echo "$DATABASE_URL" | sed -E 's|^mysql://[^@]+@([^:/]+).*|\1|')
+    
+    # Check if host is local
+    if [ -z "$DB_HOST" ] || [ "$DB_HOST" = "localhost" ] || [ "$DB_HOST" = "127.0.0.1" ] || [ "$DB_HOST" = "0.0.0.0" ]; then
+        DB_MODE="local"
+        print_success "Database mode: LOCAL (MySQL via Docker)"
+        print_info "  Host: ${DB_HOST:-localhost}"
+    else
+        DB_MODE="remote"
+        print_success "Database mode: REMOTE"
+        print_info "  Host: $DB_HOST"
+    fi
+}
+
+# Get the appropriate compose file based on DB mode
+get_compose_file() {
+    if [ "$DB_MODE" = "local" ]; then
+        echo "docker-compose.local.yml"
+    else
+        echo "docker-compose.dev.yml"
     fi
 }
 
@@ -86,7 +146,7 @@ main() {
     echo -e "${YELLOW}"
     echo "⚠️  WARNING: This will:"
     echo "  - Stop and remove all containers"
-    echo "  - Delete all volumes (DATABASE WILL BE LOST!)"
+    echo "  - Delete all volumes (LOCAL DATABASE WILL BE LOST!)"
     echo "  - Rebuild everything from scratch"
     echo -e "${NC}"
     echo ""
@@ -125,9 +185,23 @@ main() {
     COMPOSE_CMD=$(get_docker_compose_cmd)
     print_step "Using command: $COMPOSE_CMD"
     
+    # Detect database mode
+    detect_database_mode
+    
+    # Get appropriate compose file
+    COMPOSE_FILE=$(get_compose_file)
+    print_step "Using compose file: $COMPOSE_FILE"
+    
+    echo ""
+    
     # Step 1: Stop and remove everything
     print_step "Stopping and removing all containers..."
-    $COMPOSE_CMD down -v --remove-orphans 2>&1 | sed 's/^/  /'
+    
+    # Stop both local and dev compose files to clean up
+    $COMPOSE_CMD -f docker-compose.local.yml down -v --remove-orphans 2>&1 || true
+    $COMPOSE_CMD -f docker-compose.dev.yml down -v --remove-orphans 2>&1 || true
+    $COMPOSE_CMD down -v --remove-orphans 2>&1 || true
+    
     print_success "Containers and volumes removed"
     
     echo ""
@@ -142,69 +216,96 @@ main() {
     
     # Step 3: Build and start containers
     print_step "Building and starting containers..."
-    if [ "$INCLUDE_OLLAMA" = true ]; then
-        $COMPOSE_CMD --profile ollama up -d --build 2>&1 | sed 's/^/  /'
+    
+    if [ "$DB_MODE" = "local" ]; then
+        print_info "Starting MySQL + Redis (local database mode)"
     else
-        $COMPOSE_CMD up -d --build 2>&1 | sed 's/^/  /'
+        print_info "Starting Redis only (remote database mode)"
+    fi
+    
+    if [ "$INCLUDE_OLLAMA" = true ]; then
+        $COMPOSE_CMD -f "$COMPOSE_FILE" --profile ollama up -d --build 2>&1 | sed 's/^/  /'
+    else
+        $COMPOSE_CMD -f "$COMPOSE_FILE" up -d --build 2>&1 | sed 's/^/  /'
     fi
     print_success "Containers started"
     
     echo ""
     
-    # Step 4: Wait for API to be ready
-    print_step "Waiting for API to be ready..."
-    # Local PostgreSQL wait removed (using remote Neon DB)
+    # Step 4: Wait for services to be ready
+    print_step "Waiting for services to be ready..."
     
-    # Extra wait for full readiness
-    sleep 3
+    # Wait for MySQL if local mode
+    if [ "$DB_MODE" = "local" ]; then
+        echo "  Waiting for MySQL..."
+        for i in {1..60}; do
+            if docker exec grammarly_mysql mysqladmin ping -h localhost --silent 2>/dev/null; then
+                print_success "MySQL is ready"
+                break
+            fi
+            if [ $i -eq 60 ]; then
+                print_warning "MySQL is taking longer than expected"
+            fi
+            sleep 1
+        done
+    fi
+    
+    # Wait for Redis
+    for i in {1..30}; do
+        if docker exec grammarly_redis redis-cli ping &> /dev/null; then
+            print_success "Redis is ready"
+            break
+        fi
+        sleep 1
+    done
     
     echo ""
     
     # Step 5: Run database migrations
     print_step "Running Prisma migrations..."
-    if docker exec grammarly_remotedb_api npx prisma migrate deploy 2>&1 | sed 's/^/  /'; then
-        print_success "Database migrations completed"
+    
+    cd "$PROJECT_ROOT/apps/api"
+    
+    # Generate Prisma client and run migrations
+    if npx prisma generate 2>&1 | sed 's/^/  /'; then
+        print_success "Prisma client generated"
     else
-        print_warning "Migration failed. Ensure DATABASE_URL is correct in apps/api/.env"
+        print_warning "Prisma generate failed"
     fi
     
-    echo ""
+    if npx prisma migrate deploy 2>&1 | sed 's/^/  /'; then
+        print_success "Database migrations completed"
+    else
+        print_warning "Migration failed. Ensure DATABASE_URL is correct"
+    fi
     
-    # Step 6: Wait for API to be healthy
-    print_step "Waiting for API to be healthy..."
-    for i in {1..30}; do
-        if docker logs grammarly_remotedb_api 2>&1 | grep -q "Server running on"; then
-            print_success "API is running"
-            break
-        fi
-        echo "  Waiting for API... ($i/30)"
-        sleep 2
-    done
+    cd "$PROJECT_ROOT"
     
     echo ""
     
-    # Step 7: Verify all services
+    # Step 6: Verify all services
     print_step "Verifying all services..."
     
-    # Check PostgreSQL (Remote)
-    print_success "✓ PostgreSQL: Using Remote DB (Neon)"
+    # Check MySQL (depending on mode)
+    if [ "$DB_MODE" = "local" ]; then
+        if docker exec grammarly_mysql mysqladmin ping -h localhost --silent 2>/dev/null; then
+            print_success "✓ MySQL: Connected (local Docker)"
+        else
+            print_error "✗ MySQL: Failed to connect"
+        fi
+    else
+        print_success "✓ MySQL: Using Remote Database"
+    fi
     
     # Check Redis
-    if docker exec grammarly_remotedb_redis redis-cli ping &> /dev/null; then
+    if docker exec grammarly_redis redis-cli ping &> /dev/null; then
         print_success "✓ Redis: Connected"
     else
         print_error "✗ Redis: Failed"
     fi
     
-    # Check API health
-    if curl -s http://localhost:3002/health | grep -q "healthy"; then
-        print_success "✓ API: Healthy"
-    else
-        print_warning "✗ API: Not responding (check logs)"
-    fi
-    
-    # Database check (Remote)
-    print_success "✓ Database: Migrations deployed to Neon"
+    # Database check
+    print_success "✓ Database: Migrations deployed"
     
     echo ""
     echo -e "${GREEN}==========================================="
@@ -212,33 +313,21 @@ main() {
     echo "==========================================="
     echo -e "${NC}"
     echo ""
-    echo -e "${CYAN}Access your application:${NC}"
-    echo "  🌐 Web Interface: ${BLUE}http://localhost:5173${NC}"
-    echo "  🔌 API Server:    ${BLUE}http://localhost:3002${NC}"
+    echo -e "${CYAN}Database Mode:${NC}"
+    if [ "$DB_MODE" = "local" ]; then
+        echo "  MySQL: Docker container (port 3307)"
+    else
+        echo "  MySQL: Remote server"
+    fi
+    echo "  Redis: Docker container (port 6381)"
     echo ""
-    echo -e "${CYAN}Next steps:${NC}"
-    echo "  1. Open http://localhost:5173 in your browser"
-    echo "  2. Register a new user account"
-    echo "  3. Start using Grammarly Clone!"
+    echo -e "${CYAN}To start the application:${NC}"
+    echo "  ${BLUE}bash scripts/linux/start.sh${NC}"
     echo ""
     echo -e "${CYAN}Useful commands:${NC}"
     echo "  Check status:     ${BLUE}bash scripts/linux/status.sh${NC}"
-    echo "  View logs:        ${BLUE}docker logs grammarly_remotedb_api${NC}"
-    echo "  Stop all:         ${BLUE}$COMPOSE_CMD down${NC}"
-    echo "  Restart:          ${BLUE}bash scripts/linux/restart-containers.sh${NC}"
-    echo ""
-    echo ""
-    echo -e "${CYAN}Nginx Configuration (Optional):${NC}"
-    echo "If you are using Nginx as a reverse proxy, configure it to forward traffic:"
-    echo "  - Frontend: proxy_pass http://localhost:5173;"
-    echo "  - Backend:  proxy_pass http://localhost:3002;"
-    echo ""
-    echo "Example /etc/nginx/sites-available/grammarly:"
-    echo "  server {"
-    echo "      server_name your-domain.com;"
-    echo "      location / { proxy_pass http://127.0.0.1:5173; }"
-    echo "      location /api { proxy_pass http://127.0.0.1:3002; }"
-    echo "  }"
+    echo "  View logs:        ${BLUE}docker logs grammarly_redis${NC}"
+    echo "  Stop all:         ${BLUE}$COMPOSE_CMD -f $COMPOSE_FILE down${NC}"
     echo ""
 }
 

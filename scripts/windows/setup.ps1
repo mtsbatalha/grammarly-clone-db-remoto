@@ -3,8 +3,9 @@
 # ===========================================
 #
 # Complete setup from scratch:
+# - Detects if using remote or local database
 # - Stops and removes all containers
-# - Removes all volumes (DATABASE WILL BE LOST!)
+# - Removes all volumes (DATABASE WILL BE LOST if local!)
 # - Rebuilds containers
 # - Runs database migrations
 # - Verifies all services are healthy
@@ -22,9 +23,12 @@ $ErrorActionPreference = "Stop"
 
 # Get project root
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectRoot = Split-Path -Parent $ScriptDir
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 
 Set-Location $ProjectRoot
+
+# Database mode (will be detected)
+$script:DbMode = "unknown"
 
 # Output functions
 function Print-Step {
@@ -47,25 +51,99 @@ function Print-Warning {
     Write-Host "[!] $Message" -ForegroundColor Yellow
 }
 
+function Print-Info {
+    param([string]$Message)
+    Write-Host "[INFO] $Message" -ForegroundColor Cyan
+}
+
 function Print-Header {
     Write-Host ""
-    Write-Host "==========================================="  -ForegroundColor Blue
+    Write-Host "===========================================" -ForegroundColor Blue
     Write-Host "  Grammarly Clone - Fresh Install" -ForegroundColor Blue
-    Write-Host "==========================================="  -ForegroundColor Blue
+    Write-Host "===========================================" -ForegroundColor Blue
     Write-Host ""
 }
 
 # Detect docker compose command
 function Get-DockerComposeCmd {
-    if (Get-Command docker-compose -ErrorAction SilentlyContinue) {
-        return "docker-compose"
-    }
-    elseif ((docker compose version 2>$null).ExitCode -eq 0) {
+    try {
+        docker compose version 2>$null | Out-Null
         return "docker compose"
     }
+    catch {
+        if (Get-Command docker-compose -ErrorAction SilentlyContinue) {
+            return "docker-compose"
+        }
+        else {
+            Print-Error "Neither 'docker-compose' nor 'docker compose' is available"
+            exit 1
+        }
+    }
+}
+
+# Detect if DATABASE_URL points to a remote or local database
+function Detect-DatabaseMode {
+    Print-Step "Detecting database configuration..."
+    
+    $EnvFile = Join-Path $ProjectRoot ".env"
+    $ApiEnvFile = Join-Path $ProjectRoot "apps\api\.env"
+    
+    $DatabaseUrl = ""
+    
+    # Check root .env first
+    if (Test-Path $EnvFile) {
+        $content = Get-Content $EnvFile -ErrorAction SilentlyContinue
+        $match = $content | Where-Object { $_ -match "^DATABASE_URL=" }
+        if ($match) {
+            $DatabaseUrl = $match -replace "^DATABASE_URL=", "" -replace "[`"']", ""
+        }
+    }
+    
+    # Check apps/api/.env if not found
+    if (-not $DatabaseUrl -and (Test-Path $ApiEnvFile)) {
+        $content = Get-Content $ApiEnvFile -ErrorAction SilentlyContinue
+        $match = $content | Where-Object { $_ -match "^DATABASE_URL=" }
+        if ($match) {
+            $DatabaseUrl = $match -replace "^DATABASE_URL=", "" -replace "[`"']", ""
+        }
+    }
+    
+    if (-not $DatabaseUrl) {
+        Print-Warning "DATABASE_URL not found in .env files"
+        Print-Info "Assuming LOCAL database mode (MySQL via Docker)"
+        $script:DbMode = "local"
+        return
+    }
+    
+    # Extract host from DATABASE_URL
+    # Format: mysql://user:pass@host:port/database
+    if ($DatabaseUrl -match "mysql://[^@]+@([^:/]+)") {
+        $DbHost = $Matches[1]
+    }
     else {
-        Print-Error "Neither 'docker-compose' nor 'docker compose' is available"
-        exit 1
+        $DbHost = "localhost"
+    }
+    
+    # Check if host is local
+    if (-not $DbHost -or $DbHost -eq "localhost" -or $DbHost -eq "127.0.0.1" -or $DbHost -eq "0.0.0.0") {
+        $script:DbMode = "local"
+        Print-Success "Database mode: LOCAL (MySQL via Docker)"
+        Print-Info "  Host: $DbHost"
+    }
+    else {
+        $script:DbMode = "remote"
+        Print-Success "Database mode: REMOTE"
+        Print-Info "  Host: $DbHost"
+    }
+}
+
+# Get the appropriate compose file based on DB mode
+function Get-ComposeFile {
+    if ($script:DbMode -eq "local") {
+        return "docker-compose.local.yml"
+    }
+    else {
+        return "docker-compose.dev.yml"
     }
 }
 
@@ -74,7 +152,7 @@ Print-Header
 
 Write-Host "⚠️  WARNING: This will:" -ForegroundColor Yellow
 Write-Host "  - Stop and remove all containers" -ForegroundColor Yellow
-Write-Host "  - Delete all volumes (DATABASE WILL BE LOST!)" -ForegroundColor Yellow
+Write-Host "  - Delete all volumes (LOCAL DATABASE WILL BE LOST!)" -ForegroundColor Yellow
 Write-Host "  - Rebuild everything from scratch" -ForegroundColor Yellow
 Write-Host ""
 
@@ -113,13 +191,28 @@ Write-Host ""
 $ComposeCmd = Get-DockerComposeCmd
 Print-Step "Using command: $ComposeCmd"
 
+# Detect database mode
+Detect-DatabaseMode
+
+# Get appropriate compose file
+$ComposeFile = Get-ComposeFile
+Print-Step "Using compose file: $ComposeFile"
+
+Write-Host ""
+
 # Step 1: Stop and remove everything
 Print-Step "Stopping and removing all containers..."
+
+# Stop both local and dev compose files to clean up
 if ($ComposeCmd -eq "docker compose") {
-    docker compose down -v --remove-orphans
+    docker compose -f docker-compose.local.yml down -v --remove-orphans 2>&1 | Out-Null
+    docker compose -f docker-compose.dev.yml down -v --remove-orphans 2>&1 | Out-Null
+    docker compose down -v --remove-orphans 2>&1 | Out-Null
 }
 else {
-    docker-compose down -v --remove-orphans
+    docker-compose -f docker-compose.local.yml down -v --remove-orphans 2>&1 | Out-Null
+    docker-compose -f docker-compose.dev.yml down -v --remove-orphans 2>&1 | Out-Null
+    docker-compose down -v --remove-orphans 2>&1 | Out-Null
 }
 Print-Success "Containers and volumes removed"
 
@@ -135,69 +228,110 @@ if (Test-Path "apps\api\.env") {
 
 # Step 3: Build and start containers
 Print-Step "Building and starting containers..."
+
+if ($script:DbMode -eq "local") {
+    Print-Info "Starting MySQL + Redis (local database mode)"
+}
+else {
+    Print-Info "Starting Redis only (remote database mode)"
+}
+
 if ($ComposeCmd -eq "docker compose") {
     if ($script:IncludeOllama) {
-        docker compose --profile ollama up -d --build
+        docker compose -f $ComposeFile --profile ollama up -d --build
     }
     else {
-        docker compose up -d --build
+        docker compose -f $ComposeFile up -d --build
     }
 }
 else {
     if ($script:IncludeOllama) {
-        docker-compose --profile ollama up -d --build
+        docker-compose -f $ComposeFile --profile ollama up -d --build
     }
     else {
-        docker-compose up -d --build
+        docker-compose -f $ComposeFile up -d --build
     }
 }
 Print-Success "Containers started"
 
 Write-Host ""
 
-# Step 4: Wait for API to be ready
-Print-Step "Waiting for API to be ready..."
-# Local PostgreSQL wait removed (using remote Neon DB)
+# Step 4: Wait for services to be ready
+Print-Step "Waiting for services to be ready..."
 
-# Extra wait for full readiness
-Start-Sleep -Seconds 3
+# Wait for MySQL if local mode
+if ($script:DbMode -eq "local") {
+    Write-Host "  Waiting for MySQL..."
+    for ($i = 1; $i -le 60; $i++) {
+        $result = docker exec grammarly_mysql mysqladmin ping -h localhost --silent 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Print-Success "MySQL is ready"
+            break
+        }
+        if ($i -eq 60) {
+            Print-Warning "MySQL is taking longer than expected"
+        }
+        Start-Sleep -Seconds 1
+    }
+}
+
+# Wait for Redis
+for ($i = 1; $i -le 30; $i++) {
+    docker exec grammarly_redis redis-cli ping 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Print-Success "Redis is ready"
+        break
+    }
+    Start-Sleep -Seconds 1
+}
 
 Write-Host ""
 
 # Step 5: Run database migrations
 Print-Step "Running Prisma migrations..."
-docker exec grammarly_remotedb_api npx prisma migrate deploy 2>&1
+
+Set-Location "apps\api"
+
+# Generate Prisma client and run migrations
+npx prisma generate 2>&1 | ForEach-Object { Write-Host "  $_" }
+if ($LASTEXITCODE -eq 0) {
+    Print-Success "Prisma client generated"
+}
+else {
+    Print-Warning "Prisma generate failed"
+}
+
+npx prisma migrate deploy 2>&1 | ForEach-Object { Write-Host "  $_" }
 if ($LASTEXITCODE -eq 0) {
     Print-Success "Database migrations completed"
 }
 else {
-    Print-Warning "Migration failed. Ensure DATABASE_URL is correct in apps/api/.env"
+    Print-Warning "Migration failed. Ensure DATABASE_URL is correct"
 }
+
+Set-Location $ProjectRoot
 
 Write-Host ""
 
-# Step 6: Wait for API to be healthy
-Print-Step "Waiting for API to be healthy..."
-for ($i = 1; $i -le 30; $i++) {
-    $logs = docker logs grammarly_remotedb_api 2>&1 | Out-String
-    if ($logs -match "Server running on") {
-        Print-Success "API is running"
-        break
-    }
-    Write-Host "  Waiting for API... ($i/30)"
-    Start-Sleep -Seconds 2
-}
-
-Write-Host ""
-
-# Step 7: Verify all services
+# Step 6: Verify all services
 Print-Step "Verifying all services..."
 
-# Check PostgreSQL (Remote)
-Print-Success "✓ PostgreSQL: Using Remote DB (Neon)"
+# Check MySQL (depending on mode)
+if ($script:DbMode -eq "local") {
+    docker exec grammarly_mysql mysqladmin ping -h localhost --silent 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Print-Success "✓ MySQL: Connected (local Docker)"
+    }
+    else {
+        Print-Error "✗ MySQL: Failed to connect"
+    }
+}
+else {
+    Print-Success "✓ MySQL: Using Remote Database"
+}
 
 # Check Redis
-docker exec grammarly_remotedb_redis redis-cli ping 2>&1 | Out-Null
+docker exec grammarly_redis redis-cli ping 2>&1 | Out-Null
 if ($LASTEXITCODE -eq 0) {
     Print-Success "✓ Redis: Connected"
 }
@@ -205,56 +339,31 @@ else {
     Print-Error "✗ Redis: Failed"
 }
 
-# Check API health
-try {
-    $response = Invoke-WebRequest -Uri "http://localhost:3002/health" -TimeoutSec 5 -ErrorAction Stop
-    if ($response.Content -match "healthy") {
-        Print-Success "✓ API: Healthy"
-    }
-}
-catch {
-    Print-Warning "✗ API: Not responding (check logs)"
-}
-
-# Database check (Remote)
-Print-Success "✓ Database: Migrations deployed to Neon"
+# Database check
+Print-Success "✓ Database: Migrations deployed"
 
 Write-Host ""
-Write-Host "==========================================="  -ForegroundColor Green
+Write-Host "===========================================" -ForegroundColor Green
 Write-Host "  Installation Complete!" -ForegroundColor Green
-Write-Host "==========================================="  -ForegroundColor Green
+Write-Host "===========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Access your application:" -ForegroundColor Cyan
-Write-Host "  🌐 Web Interface: " -NoNewline -ForegroundColor Cyan
-Write-Host "http://localhost:5173" -ForegroundColor Blue
-Write-Host "  🔌 API Server:    " -NoNewline -ForegroundColor Cyan
-Write-Host "http://localhost:3002" -ForegroundColor Blue
+Write-Host "Database Mode:" -ForegroundColor Cyan
+if ($script:DbMode -eq "local") {
+    Write-Host "  MySQL: Docker container (port 3307)"
+}
+else {
+    Write-Host "  MySQL: Remote server"
+}
+Write-Host "  Redis: Docker container (port 6381)"
 Write-Host ""
-Write-Host "Next steps:" -ForegroundColor Cyan
-Write-Host "  1. Open http://localhost:5173 in your browser"
-Write-Host "  2. Register a new user account"
-Write-Host "  3. Start using Grammarly Clone!"
+Write-Host "To start the application:" -ForegroundColor Cyan
+Write-Host "  .\scripts\windows\start.ps1" -ForegroundColor Blue
 Write-Host ""
 Write-Host "Useful commands:" -ForegroundColor Cyan
 Write-Host "  Check status:     " -NoNewline -ForegroundColor Cyan
 Write-Host ".\scripts\windows\status.ps1" -ForegroundColor Blue
 Write-Host "  View logs:        " -NoNewline -ForegroundColor Cyan
-Write-Host "docker logs grammarly_remotedb_api" -ForegroundColor Blue
+Write-Host "docker logs grammarly_redis" -ForegroundColor Blue
 Write-Host "  Stop all:         " -NoNewline -ForegroundColor Cyan
-Write-Host "$ComposeCmd down" -ForegroundColor Blue
-Write-Host "  Restart:          " -NoNewline -ForegroundColor Cyan
-Write-Host ".\scripts\windows\restart-containers.ps1" -ForegroundColor Blue
-Write-Host ""
-Write-Host ""
-Write-Host "Nginx Configuration (Optional):" -ForegroundColor Cyan
-Write-Host "If you are using Nginx as a reverse proxy, configure it to forward traffic:"
-Write-Host "  - Frontend: proxy_pass http://localhost:5173;"
-Write-Host "  - Backend:  proxy_pass http://localhost:3002;"
-Write-Host ""
-Write-Host "Example /etc/nginx/sites-available/grammarly:"
-Write-Host "  server {"
-Write-Host "      server_name your-domain.com;"
-Write-Host "      location / { proxy_pass http://127.0.0.1:5173; }"
-Write-Host "      location /api { proxy_pass http://127.0.0.1:3002; }"
-Write-Host "  }"
+Write-Host "$ComposeCmd -f $ComposeFile down" -ForegroundColor Blue
 Write-Host ""

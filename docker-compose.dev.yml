@@ -1,32 +1,14 @@
 # ===========================================
-# Grammarly Clone - Development Services
+# Grammarly Clone - Development Services (Remote DB)
 # ===========================================
-# Lightweight version with only database services
+# Use when DATABASE_URL is configured with a remote host
 # Use: docker-compose -f docker-compose.dev.yml up -d
+#
+# Note: scripts/linux/start.sh will automatically detect
+# whether to use this file based on your DATABASE_URL
 
 services:
-  # MySQL Database
-  mysql:
-    image: mysql:8.0
-    container_name: grammarly_mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: grammarly_clone
-      MYSQL_USER: grammarly
-      MYSQL_PASSWORD: grammarly_pass
-    ports:
-      - "3307:3306"
-    volumes:
-      - grammarly_mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password
-    healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Redis Cache
+  # Redis Cache (only - MySQL is remote)
   redis:
     image: redis:7-alpine
     container_name: grammarly_redis
@@ -43,8 +25,6 @@ services:
       retries: 5
 
 volumes:
-  grammarly_mysql_data:
-    name: grammarly_mysql_data
   grammarly_redis_data:
     name: grammarly_redis_data
 
