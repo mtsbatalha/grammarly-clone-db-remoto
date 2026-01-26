@@ -5,6 +5,7 @@
 # ===========================================
 #
 # Shows the status of all project services
+# Automatically detects local vs remote database mode
 #
 # Usage:
 #   ./status.sh              # Show basic status
@@ -46,21 +47,52 @@ done
 
 # Get project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
-# Default ports (read from override if exists)
-POSTGRES_PORT=5434
+# Default ports
+MYSQL_PORT=3307
 REDIS_PORT=6381
 API_PORT=3002
 WEB_PORT=5173
 
-# Check if override file exists and read ports
-if [ -f "$PROJECT_ROOT/docker-compose.override.yml" ]; then
-    OVERRIDE_POSTGRES=$(grep -A2 'postgres:' "$PROJECT_ROOT/docker-compose.override.yml" | grep -oP '\d+(?=:5432)')
-    OVERRIDE_REDIS=$(grep -A2 'redis:' "$PROJECT_ROOT/docker-compose.override.yml" | grep -oP '\d+(?=:6379)')
-    [ -n "$OVERRIDE_POSTGRES" ] && POSTGRES_PORT=$OVERRIDE_POSTGRES
-    [ -n "$OVERRIDE_REDIS" ] && REDIS_PORT=$OVERRIDE_REDIS
-fi
+# Database mode (will be detected)
+DB_MODE="unknown"
+
+# Detect if DATABASE_URL points to a remote or local database
+detect_database_mode() {
+    # Try to read DATABASE_URL from .env file
+    ENV_FILE="$PROJECT_ROOT/.env"
+    API_ENV_FILE="$PROJECT_ROOT/apps/api/.env"
+    
+    DATABASE_URL=""
+    
+    # Check root .env first
+    if [ -f "$ENV_FILE" ]; then
+        DATABASE_URL=$(grep -E "^DATABASE_URL=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    fi
+    
+    # Check apps/api/.env if not found
+    if [ -z "$DATABASE_URL" ] && [ -f "$API_ENV_FILE" ]; then
+        DATABASE_URL=$(grep -E "^DATABASE_URL=" "$API_ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    fi
+    
+    if [ -z "$DATABASE_URL" ]; then
+        DB_MODE="local"
+        return
+    fi
+    
+    # Extract host from DATABASE_URL
+    # Format: mysql://user:pass@host:port/database
+    DB_HOST=$(echo "$DATABASE_URL" | sed -E 's|^mysql://[^@]+@([^:/]+).*|\1|')
+    
+    # Check if host is local
+    if [ -z "$DB_HOST" ] || [ "$DB_HOST" = "localhost" ] || [ "$DB_HOST" = "127.0.0.1" ] || [ "$DB_HOST" = "0.0.0.0" ]; then
+        DB_MODE="local"
+    else
+        DB_MODE="remote"
+        DB_REMOTE_HOST="$DB_HOST"
+    fi
+}
 
 # Status functions
 check_docker_running() {
@@ -115,7 +147,7 @@ check_port_listening() {
 }
 
 get_redis_info() {
-    docker exec grammarly_remotedb_redis redis-cli info clients 2>/dev/null | grep "connected_clients" | cut -d: -f2 | tr -d '\r'
+    docker exec grammarly_redis redis-cli info clients 2>/dev/null | grep "connected_clients" | cut -d: -f2 | tr -d '\r'
 }
 
 # Print functions
@@ -164,6 +196,10 @@ print_service_status() {
             status_icon="○"
             status_color="${RED}"
             ;;
+        "remote")
+            status_icon="☁"
+            status_color="${CYAN}"
+            ;;
         *)
             status_icon="?"
             status_color="${YELLOW}"
@@ -179,6 +215,9 @@ print_service_status() {
 
 # Main status check
 main() {
+    # Detect database mode first
+    detect_database_mode
+    
     print_header
     
     # Check Docker
@@ -194,39 +233,48 @@ main() {
     if [ "$JSON_OUTPUT" = true ]; then
         echo '{'
         echo '  "timestamp": "'$(date -Iseconds)'",'
+        echo '  "database_mode": "'$DB_MODE'",'
         echo '  "services": {'
     fi
     
-    # PostgreSQL status - Remote DB
-    db_conn="checking..."
-    if [ "$(check_container_status "grammarly_remotedb_api")" = "running" ]; then
-        if docker exec grammarly_remotedb_api npx prisma db pull --print 2>/dev/null | grep -q "datasource"; then
-            db_conn="connected"
+    # MySQL status
+    if [ "$DB_MODE" = "local" ]; then
+        # Check local MySQL container
+        mysql_status=$(check_container_status "grammarly_mysql")
+        mysql_health=$(check_container_health "grammarly_mysql")
+        mysql_uptime=$(get_container_uptime "grammarly_mysql")
+        
+        if [ "$JSON_OUTPUT" = true ]; then
+            echo '    "mysql": {'
+            echo "      \"mode\": \"local\","
+            echo "      \"status\": \"$mysql_status\","
+            echo "      \"health\": \"$mysql_health\","
+            echo "      \"port\": $MYSQL_PORT,"
+            echo "      \"uptime\": \"$mysql_uptime\""
+            echo '    },'
         else
-            db_conn="failed"
+            if [ "$mysql_status" = "running" ]; then
+                print_service_status "MySQL (Local)" "${mysql_health:-$mysql_status}" "$MYSQL_PORT" "(uptime: $mysql_uptime)"
+            else
+                print_service_status "MySQL (Local)" "${mysql_status:-stopped}" "$MYSQL_PORT" ""
+            fi
         fi
     else
-        db_conn="offline (API container not running)"
-    fi
-
-    if [ "$JSON_OUTPUT" = true ]; then
-        echo '    "postgresql": {'
-        echo '      "status": "remote",'
-        echo '      "provider": "Neon",'
-        echo "      \"connection\": \"$db_conn\""
-        echo '    },'
-    else
-        if [ "$db_conn" = "connected" ]; then
-            echo -e "  ${GREEN}☁${NC}  PostgreSQL          ${GREEN}remote${NC}      Connected to Neon"
+        # Remote database
+        if [ "$JSON_OUTPUT" = true ]; then
+            echo '    "mysql": {'
+            echo "      \"mode\": \"remote\","
+            echo "      \"host\": \"$DB_REMOTE_HOST\""
+            echo '    },'
         else
-            echo -e "  ${RED}☁${NC}  PostgreSQL          ${RED}remote${NC}      $db_conn"
+            echo -e "  ${CYAN}☁${NC}  MySQL (Remote)      ${CYAN}$DB_REMOTE_HOST${NC}"
         fi
     fi
     
     # Redis status
-    redis_status=$(check_container_status "grammarly_remotedb_redis")
-    redis_health=$(check_container_health "grammarly_remotedb_redis")
-    redis_uptime=$(get_container_uptime "grammarly_remotedb_redis")
+    redis_status=$(check_container_status "grammarly_redis")
+    redis_health=$(check_container_health "grammarly_redis")
+    redis_uptime=$(get_container_uptime "grammarly_redis")
     redis_clients=""
     
     if [ "$redis_status" = "running" ]; then
@@ -242,6 +290,7 @@ main() {
         echo "      \"clients\": \"$redis_clients\""
         echo '    },'
     else
+        redis_extra=""
         [ -n "$redis_clients" ] && redis_extra="Clients: $redis_clients"
         print_service_status "Redis" "${redis_health:-$redis_status}" "$REDIS_PORT" "$redis_extra (uptime: $redis_uptime)"
     fi
@@ -289,14 +338,20 @@ main() {
         echo ""
         echo -e "${CYAN}Recent Logs (last 5 lines each):${NC}"
         echo ""
-        echo -e "${YELLOW}API Logs:${NC}"
-        docker logs --tail 5 grammarly_remotedb_api 2>&1 | sed 's/^/  /'
-        echo ""
+        
+        if [ "$DB_MODE" = "local" ]; then
+            echo -e "${YELLOW}MySQL:${NC}"
+            docker logs --tail 5 grammarly_mysql 2>&1 | sed 's/^/  /'
+            echo ""
+        fi
+        
         echo -e "${YELLOW}Redis:${NC}"
         docker logs --tail 5 grammarly_redis 2>&1 | sed 's/^/  /'
     fi
     
     if [ "$JSON_OUTPUT" = false ]; then
+        echo ""
+        echo -e "${CYAN}Database Mode:${NC} ${YELLOW}$DB_MODE${NC}"
         echo ""
         echo -e "${CYAN}Quick Links:${NC}"
         echo -e "  Web:  ${BLUE}http://localhost:$WEB_PORT${NC}"
