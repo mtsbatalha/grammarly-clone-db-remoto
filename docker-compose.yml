@@ -55,17 +55,16 @@ services:
       retries: 3
       start_period: 40s
     environment:
-      # IMPORTANTE: Atualize a DATABASE_URL para seu servidor MySQL remoto
-      # Formato: mysql://usuario:senha@host:porta/database
-      - DATABASE_URL=mysql://usuario:senha@seu-mysql-host:3306/grammarly
+      # DATABASE_URL é lida do arquivo .env
+      - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://grammarly_remotedb_redis:6379
       - OLLAMA_BASE_URL=http://grammarly_remotedb_ollama:11434
-      - JWT_SECRET=sua-chave-secreta-muito-segura-aqui-min-32-chars
-      - AI_PROVIDER=groq
+      - JWT_SECRET=${JWT_SECRET:-sua-chave-secreta-muito-segura-aqui-min-32-chars}
+      - AI_PROVIDER=${AI_PROVIDER:-groq}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - GROK_API_KEY=${GROK_API_KEY}
       - GROQ_API_KEY=${GROQ_API_KEY}
-      - OLLAMA_MODEL=mistral
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
     depends_on:
       redis:
         condition: service_healthy
