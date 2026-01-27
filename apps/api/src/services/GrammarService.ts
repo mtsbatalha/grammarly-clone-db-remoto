@@ -133,9 +133,11 @@ Respond with JSON:
         changes?: { original: string; adjusted: string; reason: string }[];
       };
 
+      const adjustedText = this.preserveStructure(text, parsed.adjusted || text);
+
       return {
         original: text,
-        adjusted: parsed.adjusted || text,
+        adjusted: adjustedText,
         targetTone,
         changes: parsed.changes || [],
       };
@@ -244,9 +246,11 @@ Respond with JSON:
         improvements?: string[];
       };
 
+      const rewrittenText = this.preserveStructure(text, parsed.rewritten || text);
+
       return {
         original: text,
-        rewritten: parsed.rewritten || text,
+        rewritten: rewrittenText,
         style,
         improvements: parsed.improvements || [],
       };
@@ -254,6 +258,76 @@ Respond with JSON:
       logger.error('Rewrite failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * Preserve the exact structure of the original text in the rewritten text
+   * Ensures line count, empty lines, and formatting are maintained 1:1
+   */
+  private preserveStructure(original: string, rewritten: string): string {
+    const originalLines = original.split('\n');
+    const rewrittenLines = rewritten.split('\n');
+
+    // If line count matches, just ensure empty lines are preserved
+    if (originalLines.length === rewrittenLines.length) {
+      return originalLines.map((origLine, i) => {
+        const rewrittenLine = rewrittenLines[i] || '';
+
+        // Preserve empty lines exactly
+        if (origLine.trim() === '') {
+          return origLine; // Keep original whitespace/empty line
+        }
+
+        // Preserve leading whitespace from original
+        const originalIndent = origLine.match(/^(\s*)/)?.[1] || '';
+        const rewrittenContent = rewrittenLine.trimStart();
+
+        // If rewritten line is empty but original wasn't, use original
+        if (rewrittenContent === '' && origLine.trim() !== '') {
+          return origLine;
+        }
+
+        return originalIndent + rewrittenContent;
+      }).join('\n');
+    }
+
+    // Line count mismatch - try to map lines intelligently
+    logger.warn(`Structure mismatch: original has ${originalLines.length} lines, rewritten has ${rewrittenLines.length} lines. Attempting to fix.`);
+
+    // Strategy: preserve original structure, map non-empty lines
+    const nonEmptyOriginalIndexes: number[] = [];
+    const nonEmptyRewrittenLines: string[] = [];
+
+    originalLines.forEach((line, i) => {
+      if (line.trim() !== '') {
+        nonEmptyOriginalIndexes.push(i);
+      }
+    });
+
+    rewrittenLines.forEach(line => {
+      if (line.trim() !== '') {
+        nonEmptyRewrittenLines.push(line);
+      }
+    });
+
+    // Build result preserving original structure
+    let rewrittenIndex = 0;
+    return originalLines.map((origLine, i) => {
+      // Preserve empty lines exactly
+      if (origLine.trim() === '') {
+        return origLine;
+      }
+
+      // Use rewritten content if available, otherwise keep original
+      if (rewrittenIndex < nonEmptyRewrittenLines.length) {
+        const originalIndent = origLine.match(/^(\s*)/)?.[1] || '';
+        const rewrittenContent = nonEmptyRewrittenLines[rewrittenIndex].trimStart();
+        rewrittenIndex++;
+        return originalIndent + rewrittenContent;
+      }
+
+      return origLine;
+    }).join('\n');
   }
 
   /**
@@ -324,9 +398,11 @@ Responda em JSON:
         translated?: string;
       };
 
+      const translatedText = this.preserveStructure(text, parsed.translated || text);
+
       return {
         original: text,
-        translated: parsed.translated || text,
+        translated: translatedText,
         targetLanguage,
       };
     } catch (error) {
