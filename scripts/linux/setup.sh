@@ -274,17 +274,18 @@ main() {
         print_warning "No .env file found at project root"
     fi
     
-    # Generate Prisma client and run migrations
+    # Generate Prisma client and sync database schema
     if npx prisma generate 2>&1 | sed 's/^/  /'; then
         print_success "Prisma client generated"
     else
         print_warning "Prisma generate failed"
     fi
     
-    if npx prisma migrate deploy 2>&1 | sed 's/^/  /'; then
-        print_success "Database migrations completed"
+    # Use db push instead of migrate deploy - more robust for initial setup
+    if npx prisma db push --accept-data-loss 2>&1 | sed 's/^/  /'; then
+        print_success "Database schema synchronized"
     else
-        print_warning "Migration failed. Ensure DATABASE_URL is correct"
+        print_warning "Database sync failed. Ensure DATABASE_URL is correct"
     fi
     
     cd "$PROJECT_ROOT"
