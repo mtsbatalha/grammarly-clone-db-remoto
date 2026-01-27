@@ -208,7 +208,7 @@ router.post('/dictionary', async (req, res, next) => {
       where: { userId: req.user!.id },
     });
 
-    const currentDictionary = settings?.personalDictionary || [];
+    const currentDictionary = (settings?.personalDictionary as string[] | null) || [];
 
     if (currentDictionary.includes(word.toLowerCase())) {
       return res.json({ message: 'Palavra já existe no dicionário' });
@@ -244,8 +244,9 @@ router.delete('/dictionary/:word', async (req, res, next) => {
       throw new ApiError(404, 'Configurações não encontradas');
     }
 
-    const updatedDictionary = settings.personalDictionary.filter(
-      (w) => w !== word
+    const currentDictionary = (settings.personalDictionary as string[] | null) || [];
+    const updatedDictionary = currentDictionary.filter(
+      (w: string) => w !== word
     );
 
     await prisma.userSettings.update({
