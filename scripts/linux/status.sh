@@ -85,12 +85,64 @@ detect_database_mode() {
     # Format: mysql://user:pass@host:port/database
     DB_HOST=$(echo "$DATABASE_URL" | sed -E 's|^mysql://[^@]+@([^:/]+).*|\1|')
     
+    # Extract port from DATABASE_URL (default 3306)
+    DB_PORT=$(echo "$DATABASE_URL" | sed -E 's|^mysql://[^@]+@[^:]+:([0-9]+)/.*|\1|')
+    if [ -z "$DB_PORT" ] || [ "$DB_PORT" = "$DATABASE_URL" ]; then
+        DB_PORT="3306"
+    fi
+    
     # Check if host is local
     if [ -z "$DB_HOST" ] || [ "$DB_HOST" = "localhost" ] || [ "$DB_HOST" = "127.0.0.1" ] || [ "$DB_HOST" = "0.0.0.0" ]; then
         DB_MODE="local"
     else
         DB_MODE="remote"
         DB_REMOTE_HOST="$DB_HOST"
+        DB_REMOTE_PORT="$DB_PORT"
+    fi
+}
+
+# Check remote database connection and latency
+check_remote_db_status() {
+    local host=$1
+    local port=$2
+    
+    DB_CONN_STATUS="unknown"
+    DB_LATENCY="N/A"
+    
+    # Check if we can reach the host (TCP connection test)
+    if command -v nc &> /dev/null; then
+        # Use netcat for connection test with timeout
+        start_time=$(date +%s%3N 2>/dev/null || echo "0")
+        if nc -z -w 3 "$host" "$port" 2>/dev/null; then
+            end_time=$(date +%s%3N 2>/dev/null || echo "0")
+            DB_CONN_STATUS="connected"
+            if [ "$start_time" != "0" ] && [ "$end_time" != "0" ]; then
+                DB_LATENCY="$((end_time - start_time))ms"
+            fi
+        else
+            DB_CONN_STATUS="unreachable"
+        fi
+    elif command -v timeout &> /dev/null; then
+        # Fallback: use bash /dev/tcp with timeout
+        start_time=$(date +%s%3N 2>/dev/null || echo "0")
+        if timeout 3 bash -c "echo >/dev/tcp/$host/$port" 2>/dev/null; then
+            end_time=$(date +%s%3N 2>/dev/null || echo "0")
+            DB_CONN_STATUS="connected"
+            if [ "$start_time" != "0" ] && [ "$end_time" != "0" ]; then
+                DB_LATENCY="$((end_time - start_time))ms"
+            fi
+        else
+            DB_CONN_STATUS="unreachable"
+        fi
+    else
+        # Last resort: try ping for host reachability
+        if ping -c 1 -W 2 "$host" &>/dev/null; then
+            DB_CONN_STATUS="host_reachable"
+            DB_LATENCY=$(ping -c 1 "$host" 2>/dev/null | grep -oP 'time=\K[0-9.]+' | head -1)
+            [ -n "$DB_LATENCY" ] && DB_LATENCY="${DB_LATENCY}ms"
+        else
+            DB_CONN_STATUS="unreachable"
+        fi
     fi
 }
 
@@ -260,14 +312,50 @@ main() {
             fi
         fi
     else
-        # Remote database
+        # Remote database - check connection and latency
+        check_remote_db_status "$DB_REMOTE_HOST" "$DB_REMOTE_PORT"
+        
         if [ "$JSON_OUTPUT" = true ]; then
             echo '    "mysql": {'
             echo "      \"mode\": \"remote\","
-            echo "      \"host\": \"$DB_REMOTE_HOST\""
+            echo "      \"host\": \"$DB_REMOTE_HOST\","
+            echo "      \"port\": $DB_REMOTE_PORT,"
+            echo "      \"connection_status\": \"$DB_CONN_STATUS\","
+            echo "      \"latency\": \"$DB_LATENCY\""
             echo '    },'
         else
-            echo -e "  ${CYAN}☁${NC}  MySQL (Remote)      ${CYAN}$DB_REMOTE_HOST${NC}"
+            # Determine connection status color and icon
+            local conn_icon=""
+            local conn_color=""
+            case $DB_CONN_STATUS in
+                "connected")
+                    conn_icon="●"
+                    conn_color="${GREEN}"
+                    ;;
+                "host_reachable")
+                    conn_icon="◐"
+                    conn_color="${YELLOW}"
+                    ;;
+                "unreachable")
+                    conn_icon="○"
+                    conn_color="${RED}"
+                    ;;
+                *)
+                    conn_icon="?"
+                    conn_color="${YELLOW}"
+                    ;;
+            esac
+            
+            echo ""
+            echo -e "  ${CYAN}╔══════════════════════════════════════════╗${NC}"
+            echo -e "  ${CYAN}║${NC}         ${CYAN}☁  Remote Database${NC}              ${CYAN}║${NC}"
+            echo -e "  ${CYAN}╠══════════════════════════════════════════╣${NC}"
+            printf "  ${CYAN}║${NC}  %-12s ${BLUE}%-27s${NC}${CYAN}║${NC}\n" "Host:" "$DB_REMOTE_HOST"
+            printf "  ${CYAN}║${NC}  %-12s ${BLUE}%-27s${NC}${CYAN}║${NC}\n" "Port:" "$DB_REMOTE_PORT"
+            printf "  ${CYAN}║${NC}  %-12s ${conn_color}${conn_icon} %-25s${NC}${CYAN}║${NC}\n" "Connection:" "$DB_CONN_STATUS"
+            printf "  ${CYAN}║${NC}  %-12s ${YELLOW}%-27s${NC}${CYAN}║${NC}\n" "Latency:" "$DB_LATENCY"
+            echo -e "  ${CYAN}╚══════════════════════════════════════════╝${NC}"
+            echo ""
         fi
     fi
     
