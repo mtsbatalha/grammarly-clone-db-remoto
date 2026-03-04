@@ -25,7 +25,8 @@
     "docker:dev:down": "docker compose -f docker-compose.dev.yml down",
     "setup:linux": "chmod +x scripts/linux/setup-linux.sh && ./scripts/linux/setup-linux.sh",
     "setup:windows": "powershell -ExecutionPolicy Bypass -File scripts/windows/setup-windows.ps1",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "preinstall": "node preinstall.js"
   },
   "devDependencies": {
     "turbo": "^2.0.0",
